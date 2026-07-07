@@ -1,0 +1,8 @@
+path: ./yolo/data
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: ripe_grape
+  1: unripe_grape

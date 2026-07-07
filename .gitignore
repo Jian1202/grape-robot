@@ -1,9 +1,55 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# ROS2 build outputs
+build/
+install/
+log/
+
+# YOLO / training outputs
+runs/
+wandb/
+*.cache
+
+# Large data
+data/raw/
+data/tmp/
+data/cache/
+yolo/data/images/
+yolo/data/labels/
+
+# Model weights
+*.pt
+*.onnx
+*.engine
+*.tflite
+
+# ROS bags and large logs
+*.bag
+*.db3
+*.mcap
+
 # Windows duplicate copies
 * (1).py
 * (2).py
 * - 副本.py
 *副本*
 
-# Python cache
-__pycache__/
-*.pyc
+# Secrets
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+*.pub
