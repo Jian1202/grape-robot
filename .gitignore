@@ -1,0 +1,9 @@
+# Windows duplicate copies
+* (1).py
+* (2).py
+* - 副本.py
+*副本*
+
+# Python cache
+__pycache__/
+*.pyc
