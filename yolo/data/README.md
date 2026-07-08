@@ -14,8 +14,8 @@
 推荐类别：
 
 names:
-  0: ripe_grape
-  1: unripe_grape
+  0: unripe_grape
+  1: ripe_grape
 
 ## 当前本地数据批次
 

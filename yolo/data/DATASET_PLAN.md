@@ -50,8 +50,8 @@ yolo/data/review/                          待复查图片
 ## 第一版类别
 
 ```text
-0 ripe_grape
-1 unripe_grape
+0 unripe_grape
+1 ripe_grape
 ```
 
 ## 建议划分比例

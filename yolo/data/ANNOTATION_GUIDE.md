@@ -7,8 +7,8 @@
 当前只标注两个类别：
 
 ```text
-0 ripe_grape
-1 unripe_grape
+0 unripe_grape
+1 ripe_grape
 ```
 
 - `ripe_grape`：成熟葡萄，当前按紫色葡萄处理。
