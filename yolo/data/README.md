@@ -16,3 +16,30 @@
 names:
   0: ripe_grape
   1: unripe_grape
+
+## 当前本地数据批次
+
+当前本地准备的数据批次为：
+
+```text
+grape_20260708
+```
+
+本地原图备份目录：
+
+```text
+yolo/data/raw/grape_20260708/
+```
+
+标注工作目录：
+
+```text
+yolo/data/annotation_work/grape_20260708/
+```
+
+以上目录只在本地使用，不提交到 GitHub。
+
+标注前先阅读：
+
+- `ANNOTATION_GUIDE.md`
+- `DATASET_PLAN.md`

@@ -27,6 +27,9 @@ wandb/
 data/raw/
 data/tmp/
 data/cache/
+yolo/data/raw/
+yolo/data/annotation_work/
+yolo/data/review/
 yolo/data/images/
 yolo/data/labels/
 
