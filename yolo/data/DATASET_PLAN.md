@@ -91,6 +91,7 @@ python yolo/scripts/prepare_dataset_split.py
 
 ## 下一步
 
-1. 训练前再次检查 `grape.yaml` 中类别顺序。
-2. 使用 `yolo/data/grape.yaml` 启动第一版 YOLO 训练。
-3. 根据验证集和测试集效果决定是否补拍或增强数据。
+1. 使用没有参与训练的新图片测试第一版模型。
+2. 重点检查叶子、椅子、地面、桌面等背景误检。
+3. 根据新场景测试结果决定是否补拍负样本或增强数据。
+4. 训练记录见 `yolo/TRAINING_NOTES.md`。

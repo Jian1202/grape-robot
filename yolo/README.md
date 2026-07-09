@@ -14,6 +14,10 @@ data/      数据集说明与 YOLO 配置
 scripts/   训练、推理、数据划分脚本
 models/    模型权重说明
 
+训练记录：
+
+TRAINING_NOTES.md
+
 ## 注意事项
 
 - 不要直接提交大量原始图片。

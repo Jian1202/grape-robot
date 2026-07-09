@@ -9,3 +9,17 @@
 - `*.engine`
 
 如果确实需要管理权重，应考虑 Git LFS 或 GitHub Release。
+
+## 当前本地基线模型
+
+```text
+yolo/runs/grape_v1_cpu_e20/weights/best.pt
+```
+
+该文件只保存在本地训练输出目录中，不提交到 Git。
+
+训练记录见：
+
+```text
+yolo/TRAINING_NOTES.md
+```
