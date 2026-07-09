@@ -43,3 +43,24 @@ yolo/data/annotation_work/grape_20260708/
 
 - `ANNOTATION_GUIDE.md`
 - `DATASET_PLAN.md`
+
+## 当前正式 YOLO 数据目录
+
+第一版数据集已经整理到：
+
+```text
+yolo/data/images/train/
+yolo/data/images/val/
+yolo/data/images/test/
+yolo/data/labels/train/
+yolo/data/labels/val/
+yolo/data/labels/test/
+```
+
+划分记录：
+
+```text
+yolo/data/SPLIT_SUMMARY.md
+```
+
+以上图片和标签目录只在本地使用，不提交到 GitHub。

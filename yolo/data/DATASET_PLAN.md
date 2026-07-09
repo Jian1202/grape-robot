@@ -54,22 +54,43 @@ yolo/data/review/                          待复查图片
 1 ripe_grape
 ```
 
-## 建议划分比例
+## 数据集划分
 
-302 张图片建议初步划分为：
+当前已生成第一版 YOLO 数据集划分：
 
 ```text
-train: 210 张左右
-val:    60 张左右
-test:   30 张左右
+train: 210 张，430 个框，unripe_grape 218 个，ripe_grape 212 个
+val:    60 张，127 个框，unripe_grape  61 个，ripe_grape  66 个
+test:   32 张， 68 个框，unripe_grape  35 个，ripe_grape  33 个
 ```
 
-划分时不要只随机分，要保证训练集、验证集、测试集都包含不同背景、光照和葡萄组合。
+划分记录见：
+
+```text
+yolo/data/SPLIT_SUMMARY.md
+```
+
+正式 YOLO 数据目录为：
+
+```text
+yolo/data/images/train/
+yolo/data/images/val/
+yolo/data/images/test/
+yolo/data/labels/train/
+yolo/data/labels/val/
+yolo/data/labels/test/
+```
+
+这些图片和标签目录只在本地使用，不提交到 GitHub。
+
+如需重新生成划分，运行：
+
+```bash
+python yolo/scripts/prepare_dataset_split.py
+```
 
 ## 下一步
 
-1. 使用标注工具打开 `yolo/data/annotation_work/grape_20260708/`。
-2. 按 `ANNOTATION_GUIDE.md` 先标注 30 张。
-3. 导出或保存 YOLO 标签。
-4. 抽查标签和框是否一致。
-5. 确认规则没问题后再继续标完整批数据。
+1. 训练前再次检查 `grape.yaml` 中类别顺序。
+2. 使用 `yolo/data/grape.yaml` 启动第一版 YOLO 训练。
+3. 根据验证集和测试集效果决定是否补拍或增强数据。
