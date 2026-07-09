@@ -24,11 +24,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train", type=int, default=210, help="Number of training images.")
     parser.add_argument("--val", type=int, default=60, help="Number of validation images.")
     parser.add_argument("--test", type=int, default=32, help="Number of test images.")
+    parser.add_argument(
+        "--extra-images",
+        action="append",
+        default=[],
+        help="Extra image directory to append after the base split. Can be passed multiple times.",
+    )
+    parser.add_argument(
+        "--extra-labels",
+        action="append",
+        default=[],
+        help="Extra label directory matching --extra-images. Missing labels are treated as empty labels.",
+    )
+    parser.add_argument(
+        "--extra-split",
+        choices=["train", "val", "test"],
+        default="train",
+        help="Split to receive extra images.",
+    )
     return parser.parse_args()
 
 
 def label_counts(label_path: Path) -> Counter[str]:
     counts: Counter[str] = Counter()
+    if not label_path.exists():
+        return counts
     for line in label_path.read_text(encoding="utf-8").splitlines():
         parts = line.split()
         if len(parts) == 5:
@@ -88,6 +108,13 @@ def clean_output(out_root: Path) -> None:
         subdir.mkdir(parents=True, exist_ok=True)
 
 
+def copy_label(label: Path, destination: Path) -> None:
+    if label.exists():
+        shutil.copy2(label, destination)
+    else:
+        destination.write_text("", encoding="utf-8")
+
+
 def write_manifest(out_root: Path, splits: dict[str, list[dict]], seed: int) -> None:
     lines = [
         "# 本地 YOLO 数据集划分记录",
@@ -118,7 +145,8 @@ def write_manifest(out_root: Path, splits: dict[str, list[dict]], seed: int) -> 
         lines.append(f"### {split}")
         lines.append("")
         for item in sorted(splits[split], key=lambda entry: entry["stem"]):
-            lines.append(f"- `{item['image'].name}`")
+            suffix = "，空标签负样本" if not item["classes"] else ""
+            lines.append(f"- `{item['image'].name}`{suffix}")
         lines.append("")
 
     (out_root / "SPLIT_SUMMARY.md").write_text("\n".join(lines), encoding="utf-8")
@@ -126,6 +154,9 @@ def write_manifest(out_root: Path, splits: dict[str, list[dict]], seed: int) -> 
 
 def main() -> None:
     args = parse_args()
+    if len(args.extra_images) != len(args.extra_labels):
+        raise ValueError("--extra-images and --extra-labels must be provided in pairs.")
+
     image_dir = Path(args.images)
     label_dir = Path(args.labels)
     out_root = Path(args.out)
@@ -144,10 +175,18 @@ def main() -> None:
     clean_output(out_root)
     splits = split_items(items, args.train, args.val, args.test, args.seed)
 
+    for extra_image_dir, extra_label_dir in zip(args.extra_images, args.extra_labels):
+        extra_image_path = Path(extra_image_dir)
+        extra_label_path = Path(extra_label_dir)
+        for image in sorted(extra_image_path.glob("*.jpg")):
+            label = extra_label_path / f"{image.stem}.txt"
+            counts = label_counts(label)
+            splits[args.extra_split].append({"stem": image.stem, "image": image, "label": label, "classes": counts})
+
     for split, split_items_ in splits.items():
         for item in split_items_:
             shutil.copy2(item["image"], out_root / "images" / split / item["image"].name)
-            shutil.copy2(item["label"], out_root / "labels" / split / item["label"].name)
+            copy_label(item["label"], out_root / "labels" / split / f"{item['stem']}.txt")
 
     write_manifest(out_root, splits, args.seed)
 

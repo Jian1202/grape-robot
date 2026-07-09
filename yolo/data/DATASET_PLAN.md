@@ -6,6 +6,7 @@
 
 ```text
 grape_20260708
+grape_20260709_hard26
 ```
 
 原始数据来源：
@@ -17,7 +18,9 @@ E:\图片库\手机照片云服务中转\🍇数据集
 当前数量：
 
 ```text
-302 张 JPG 图片
+基础数据：302 张 JPG 图片
+困难样本：26 张 JPG 图片
+合计：328 张 JPG 图片
 ```
 
 ## 拍摄覆盖情况
@@ -42,6 +45,8 @@ E:\图片库\手机照片云服务中转\🍇数据集
 ```text
 yolo/data/raw/grape_20260708/              原图备份
 yolo/data/annotation_work/grape_20260708/  标注工作目录
+yolo/data/review/grape_20260709_unseen/   hard26 新场景复查图片
+yolo/data/review/hard26_export_check/      hard26 CVAT 导出检查目录
 yolo/data/review/                          待复查图片
 ```
 
@@ -56,10 +61,10 @@ yolo/data/review/                          待复查图片
 
 ## 数据集划分
 
-当前已生成第一版 YOLO 数据集划分：
+当前已生成第二版 YOLO 数据集划分：
 
 ```text
-train: 210 张，430 个框，unripe_grape 218 个，ripe_grape 212 个
+train: 236 张，497 个框，unripe_grape 256 个，ripe_grape 241 个，含 5 张空标签负样本
 val:    60 张，127 个框，unripe_grape  61 个，ripe_grape  66 个
 test:   32 张， 68 个框，unripe_grape  35 个，ripe_grape  33 个
 ```
@@ -85,13 +90,16 @@ yolo/data/labels/test/
 
 如需重新生成划分，运行：
 
-```bash
-python yolo/scripts/prepare_dataset_split.py
+```powershell
+python yolo/scripts/prepare_dataset_split.py `
+  --extra-images yolo/data/review/grape_20260709_unseen `
+  --extra-labels yolo/data/review/hard26_export_check/labels/train `
+  --extra-split train
 ```
 
 ## 下一步
 
-1. 使用没有参与训练的新图片测试第一版模型。
+1. 使用没有参与第二版训练的新图片测试当前模型。
 2. 重点检查叶子、椅子、地面、桌面等背景误检。
 3. 根据新场景测试结果决定是否补拍负样本或增强数据。
 4. 训练记录见 `yolo/TRAINING_NOTES.md`。

@@ -124,6 +124,101 @@ yolo/runs/grape_v1_test_pred_conf05/
 
 抽查复杂叶片背景后，`conf=0.5` 比默认 `conf=0.25` 更适合作为当前第一版演示阈值。
 
+## 第二版 hard26 微调
+
+训练日期：2026-07-09
+
+新增数据：
+
+```text
+grape_20260709_hard26
+新增图片：26 张
+新增标注框：67
+类别 0：unripe_grape，38 个框
+类别 1：ripe_grape，29 个框
+空标签负样本：5 张
+```
+
+合并后数据集：
+
+```text
+总图片：328
+总标注框：692
+类别 0：unripe_grape，352 个框
+类别 1：ripe_grape，340 个框
+```
+
+划分：
+
+```text
+train: 236 张，497 个框，含 5 张空标签负样本
+val:    60 张，127 个框
+test:   32 张， 68 个框
+```
+
+训练命令：
+
+```powershell
+$env:POLARS_SKIP_CPU_CHECK='1'
+.\.venv\Scripts\yolo.exe detect train `
+  data=yolo/data/grape.yaml `
+  model=E:/grape-robot/yolo/runs/grape_v1_cpu_e20/weights/best.pt `
+  epochs=20 `
+  imgsz=320 `
+  batch=8 `
+  workers=0 `
+  device=cpu `
+  project=E:/grape-robot/yolo/runs `
+  name=grape_v2_hard26_cpu_e20 `
+  exist_ok=True
+```
+
+训练耗时：
+
+```text
+约 0.409 小时，约 25 分钟
+```
+
+本地产物：
+
+```text
+yolo/runs/grape_v2_hard26_cpu_e20/weights/best.pt
+yolo/runs/grape_v2_hard26_cpu_e20/weights/last.pt
+```
+
+验证集指标：
+
+| 类别 | P | R | mAP50 | mAP50-95 |
+| --- | ---: | ---: | ---: | ---: |
+| all | 0.985 | 0.992 | 0.995 | 0.867 |
+| unripe_grape | 0.978 | 0.984 | 0.994 | 0.867 |
+| ripe_grape | 0.993 | 1.000 | 0.995 | 0.867 |
+
+测试集指标：
+
+| 类别 | P | R | mAP50 | mAP50-95 |
+| --- | ---: | ---: | ---: | ---: |
+| all | 0.980 | 0.985 | 0.994 | 0.830 |
+| unripe_grape | 0.971 | 0.969 | 0.993 | 0.787 |
+| ripe_grape | 0.989 | 1.000 | 0.995 | 0.874 |
+
+hard26 复查结论：
+
+```text
+遮挡样本 IMG_20260709_220510 已能检出。
+空景样本仍保持无检测。
+IMG_20260709_220703 在 conf=0.5 下漏检，但 conf=0.3 下能检出，置信度约 0.49。
+原先的大范围异常框已消失。
+```
+
+当前推荐：
+
+```text
+演示初期可使用 grape_v2_hard26_cpu_e20/weights/best.pt。
+推理阈值先在 conf=0.4~0.5 之间测试。
+后续抓取控制不要只依赖置信度，还需要结合目标大小、深度和可达性过滤。
+```
+
 ## 配置不足时的方案
 
 当前电脑可以完成小规模 CPU 基线训练。后续如果数据量增加、输入尺寸提高或使用更大模型，优先按以下顺序处理：
@@ -139,8 +234,8 @@ yolo/runs/grape_v1_test_pred_conf05/
 
 ## 下一步
 
-1. 拿 20~50 张新的、没有参与训练的真实场景图片测试。
-2. 特别测试远距离、小目标、弱光、强反光、叶片遮挡和纯背景无葡萄图片。
-3. 记录误检和漏检样例，决定是否补拍负样本或重新标注。
+1. 再拍一批没有参与 v2 训练的新图片，重点包含远距离、小目标和叶片遮挡。
+2. 使用 `grape_v2_hard26_cpu_e20/weights/best.pt` 做独立测试。
+3. 记录误检和漏检样例，决定是否继续补拍负样本或困难样本。
 4. 如果新场景仍稳定，再把 `best.pt` 接入 Python 推理脚本。
 5. Python 推理稳定后，再进入 ROS2 图像话题接入。

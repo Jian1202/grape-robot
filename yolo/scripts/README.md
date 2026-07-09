@@ -38,3 +38,19 @@ yolo/data/SPLIT_SUMMARY.md
 ```bash
 python yolo/scripts/prepare_dataset_split.py
 ```
+
+追加 hard26 困难样本到训练集：
+
+```bash
+python yolo/scripts/prepare_dataset_split.py \
+  --extra-images yolo/data/review/grape_20260709_unseen \
+  --extra-labels yolo/data/review/hard26_export_check/labels/train \
+  --extra-split train
+```
+
+说明：
+
+```text
+extra labels 中缺失的标签文件会按空标签负样本处理。
+当前用于把空景、叶片遮挡、远距离等困难样本加入 train。
+```

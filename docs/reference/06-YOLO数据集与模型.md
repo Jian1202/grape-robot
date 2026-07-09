@@ -372,14 +372,14 @@ pip install ultralytics
 $env:POLARS_SKIP_CPU_CHECK='1'
 .\.venv\Scripts\yolo.exe detect train `
   data=yolo/data/grape.yaml `
-  model=yolo11n.pt `
+  model=E:/grape-robot/yolo/runs/grape_v1_cpu_e20/weights/best.pt `
   epochs=20 `
   imgsz=320 `
   batch=8 `
   workers=0 `
   device=cpu `
   project=E:/grape-robot/yolo/runs `
-  name=grape_v1_cpu_e20 `
+  name=grape_v2_hard26_cpu_e20 `
   exist_ok=True
 ```
 
@@ -404,9 +404,10 @@ model=yolo11n.pt
 
 ```text
 yolo/runs/grape_v1_cpu_e20/weights/best.pt
-yolo/runs/grape_v1_cpu_e20/weights/last.pt
-yolo/runs/grape_v1_cpu_e20/results.png
-yolo/runs/grape_v1_cpu_e20/confusion_matrix.png
+yolo/runs/grape_v2_hard26_cpu_e20/weights/best.pt
+yolo/runs/grape_v2_hard26_cpu_e20/weights/last.pt
+yolo/runs/grape_v2_hard26_cpu_e20/results.png
+yolo/runs/grape_v2_hard26_cpu_e20/confusion_matrix.png
 ```
 
 应交付的核心文件：
@@ -436,9 +437,9 @@ best.pt
 
 ```bash
 yolo detect predict \
-  model=yolo/runs/grape_v1_cpu_e20/weights/best.pt \
+  model=yolo/runs/grape_v2_hard26_cpu_e20/weights/best.pt \
   source=tests/test_images \
-  conf=0.5 \
+  conf=0.4 \
   save=True
 ```
 
@@ -472,9 +473,9 @@ Python 示例：
 ```python
 from ultralytics import YOLO
 
-model = YOLO("yolo/runs/grape_v1_cpu_e20/weights/best.pt")
+model = YOLO("yolo/runs/grape_v2_hard26_cpu_e20/weights/best.pt")
 
-results = model(frame, conf=0.5)
+results = model(frame, conf=0.4)
 
 for box in results[0].boxes:
     cls_id = int(box.cls[0])
@@ -571,10 +572,10 @@ yolo11s_grape_v1.pt
 示例：
 
 ```markdown
-## grape_v1_cpu_e20
+## grape_v2_hard26_cpu_e20
 
 - 日期：2026-07-09
-- 数据量：302 张图片，625 个框
+- 数据量：328 张图片，692 个框
 - 类别：0 unripe_grape / 1 ripe_grape
 - 标注粒度：一串葡萄一个框
 - 模型：yolo11n.pt
@@ -582,7 +583,7 @@ yolo11s_grape_v1.pt
 - epochs：20
 - batch：8
 - 设备：CPU
-- 主要目标：第一版教室模拟葡萄识别基线
+- 主要目标：加入 hard26 困难样本后的第二版识别基线
 - 已知问题：数据仍偏模拟和同批次，需要用新场景图片验证泛化
 ```
 
@@ -596,7 +597,7 @@ yolo11s_grape_v1.pt
 项目需要成熟 / 未成熟葡萄识别
 教室模拟葡萄架场景是重要演示环境
 YOLO 第一版应优先服务现场演示闭环
-第一版数据集为 302 张图片，类别顺序为 0 unripe_grape / 1 ripe_grape
+当前第二版数据集为 328 张图片，类别顺序为 0 unripe_grape / 1 ripe_grape
 当前标注粒度为一串葡萄一个框
 负样本教室背景图有必要采集
 ```

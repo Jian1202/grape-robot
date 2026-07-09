@@ -13,10 +13,16 @@
 ## 当前本地基线模型
 
 ```text
-yolo/runs/grape_v1_cpu_e20/weights/best.pt
+yolo/runs/grape_v2_hard26_cpu_e20/weights/best.pt
 ```
 
 该文件只保存在本地训练输出目录中，不提交到 Git。
+
+上一版基线：
+
+```text
+yolo/runs/grape_v1_cpu_e20/weights/best.pt
+```
 
 训练记录见：
 
