@@ -25,6 +25,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from kinematics.kinematics_control import set_pose_target
 from kinematics_msgs.srv import GetRobotPose, SetRobotPose
 from servo_controller.bus_servo_control import set_servo_position
+from ultralytics import YOLO
 
 
 def depth_pixel_to_camera(pixel_coords, depth, intrinsics):
@@ -99,6 +100,109 @@ class ColorTracker:
             return (result_image, None, None, 0)
 
 
+class YoloTracker(ColorTracker):
+    """Use YOLO detections while keeping the original tracker output format."""
+
+    def __init__(self, model_path, target_class='ripe_grape', confidence=0.4, imgsz=320):
+        super().__init__(target_class)
+        self.target_class = target_class
+        self.confidence = float(confidence)
+        self.imgsz = int(imgsz)
+        self.model = YOLO(model_path)
+
+        class_names = set(self.model.names.values())
+        if self.target_class not in class_names:
+            raise ValueError(
+                f"target_class={self.target_class!r} is not in model classes: "
+                f"{sorted(class_names)}"
+            )
+
+    def proc(self, source_image, result_image, color_ranges=None):
+        h, w = source_image.shape[:2]
+
+        # ROS image is RGB. Ultralytics numpy/OpenCV input is BGR.
+        bgr_image = cv2.cvtColor(source_image, cv2.COLOR_RGB2BGR)
+        prediction = self.model.predict(
+            source=bgr_image,
+            conf=self.confidence,
+            imgsz=self.imgsz,
+            device=0,
+            verbose=False,
+        )[0]
+
+        detections = []
+        if prediction.boxes is not None:
+            for box in prediction.boxes:
+                class_id = int(box.cls[0].item())
+                class_name = self.model.names[class_id]
+                if class_name != self.target_class:
+                    continue
+
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                confidence = float(box.conf[0].item())
+                center_x = (x1 + x2) / 2.0
+                center_y = (y1 + y2) / 2.0
+                detections.append(
+                    {
+                        'box': (x1, y1, x2, y2),
+                        'center': (center_x, center_y),
+                        'confidence': confidence,
+                        'class_name': class_name,
+                    }
+                )
+
+        if not detections:
+            return (result_image, None, None, 0)
+
+        # Preserve the original behavior: select the leftmost matching target.
+        target = min(detections, key=lambda item: item['center'][0])
+        x1, y1, x2, y2 = target['box']
+        center_x, center_y = target['center']
+
+        cv2.rectangle(
+            result_image,
+            (int(x1), int(y1)),
+            (int(x2), int(y2)),
+            (0, 255, 0),
+            2,
+        )
+        label = f"{target['class_name']} {target['confidence']:.2f}"
+        cv2.putText(
+            result_image,
+            label,
+            (int(x1), max(20, int(y1) - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
+
+        center_x_1 = center_x / w
+        if abs(center_x_1 - 0.5) > 0.02:
+            self.pid_yaw.SetPoint = 0.5
+            self.pid_yaw.update(center_x_1)
+            self.yaw = min(max(self.yaw + self.pid_yaw.output, 0), 1000)
+        else:
+            self.pid_yaw.clear()
+
+        center_y_1 = center_y / h
+        if abs(center_y_1 - 0.5) > 0.02:
+            self.pid_pitch.SetPoint = 0.5
+            self.pid_pitch.update(center_y_1)
+            self.pitch = min(max(self.pitch + self.pid_pitch.output, 100), 720)
+        else:
+            self.pid_pitch.clear()
+
+        target_size = max(x2 - x1, y2 - y1)
+        return (
+            result_image,
+            (self.pitch, self.yaw),
+            (center_x, center_y),
+            target_size,
+        )
+
+
 class TrackAndGrabNode(Node):
     hand2cam_tf_matrix = [
     [0.0, 0.0, 1.0, -0.101],
@@ -126,7 +230,28 @@ class TrackAndGrabNode(Node):
         self.joints_pub = self.create_publisher(ServosPosition, '/servo_controller', 1)
 
         self.target_color = None
-     
+
+        parameter_defaults = {
+            'start': True,
+            'color': 'green',
+            'detector': 'yolo',
+            'model_path': '/home/ubuntu/grape-yolo/models/grape_v2_best.pt',
+            'target_class': 'ripe_grape',
+            'confidence': 0.4,
+            'imgsz': 320,
+            'enable_arm': False,
+        }
+        for parameter_name, default_value in parameter_defaults.items():
+            if not self.has_parameter(parameter_name):
+                self.declare_parameter(parameter_name, default_value)
+
+        self.detector_type = str(self.get_parameter('detector').value)
+        self.model_path = str(self.get_parameter('model_path').value)
+        self.target_class = str(self.get_parameter('target_class').value)
+        self.confidence = float(self.get_parameter('confidence').value)
+        self.imgsz = int(self.get_parameter('imgsz').value)
+        self.enable_arm = bool(self.get_parameter('enable_arm').value)
+
         self.get_current_pose_client = self.create_client(GetRobotPose, '/kinematics/get_current_pose')
         self.get_current_pose_client.wait_for_service()
         self.set_pose_target_client = self.create_client(SetRobotPose, '/kinematics/set_pose_target')
@@ -165,14 +290,30 @@ class TrackAndGrabNode(Node):
         msg.data = False
         self.send_request(self.client, msg)
 
-        set_servo_position(self.joints_pub, 1, ((1, 500), (2, 720), (3, 100), (4, 120), (5, 500), (10, 200)))
-        time.sleep(1)
+        if self.enable_arm:
+            set_servo_position(self.joints_pub, 1, ((1, 500), (2, 720), (3, 100), (4, 120), (5, 500), (10, 200)))
+            time.sleep(1)
+
         if self.get_parameter('start').value:
-            self.target_color = self.get_parameter('color').value
- 
-            msg = SetString.Request()
-            msg.data = self.target_color
-            self.set_color_srv_callback(msg, SetString.Response())
+            if self.detector_type == 'yolo':
+                self.target_color = self.target_class
+                self.tracker = YoloTracker(
+                    model_path=self.model_path,
+                    target_class=self.target_class,
+                    confidence=self.confidence,
+                    imgsz=self.imgsz,
+                )
+                self.start = True
+                self.get_logger().info(
+                    f'YOLO ready: class={self.target_class}, '
+                    f'conf={self.confidence}, imgsz={self.imgsz}, '
+                    f'enable_arm={self.enable_arm}'
+                )
+            else:
+                self.target_color = self.get_parameter('color').value
+                msg = SetString.Request()
+                msg.data = self.target_color
+                self.set_color_srv_callback(msg, SetString.Response())
 
         threading.Thread(target=self.main, daemon=True).start()
         self.create_service(Trigger, '~/init_finish', self.get_node_state)
@@ -209,7 +350,8 @@ class TrackAndGrabNode(Node):
         self.count = 0
         self.last_pitch_yaw = (0, 0)
         self.last_position = (0, 0, 0)
-        set_servo_position(self.joints_pub, 1, ((1, 500), (2, 720), (3, 100), (4, 120), (5, 500), (10, 200)))
+        if self.enable_arm:
+            set_servo_position(self.joints_pub, 1, ((1, 500), (2, 720), (3, 100), (4, 120), (5, 500), (10, 200)))
         response.success = True
         response.message = "stop"
         return response
@@ -301,6 +443,25 @@ class TrackAndGrabNode(Node):
 
                 if self.tracker is not None and self.moving == False and time.time() > self.start_stamp and self.start:
                     result_image, p_y, center, r = self.tracker.proc(rgb_image, result_image, self.lab_data)
+
+                    # Stage 1 safety mode: detect and draw only, without moving the arm.
+                    if p_y is not None and not self.enable_arm:
+                        center_x, center_y = center
+
+                        # YOLO 中心点来自 RGB 图像，不能使用深度图尺寸裁剪
+                        rgb_h, rgb_w = result_image.shape[:2]
+                        center_x = min(max(center_x, 0), rgb_w - 1)
+                        center_y = min(max(center_y, 0), rgb_h - 1)
+
+                        cv2.circle(
+                            result_image,
+                            (int(round(center_x)), int(round(center_y))),
+                            5,
+                            (255, 255, 255),
+                            -1,
+                        )
+                        p_y = None
+
                     if p_y is not None:
                         set_servo_position(self.joints_pub, 0.02, ((1, int(p_y[1])), (4, int(p_y[0]))))
                         center_x, center_y = center
