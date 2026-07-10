@@ -7,12 +7,14 @@
 ```text
 grape_20260708
 grape_20260709_hard26
+grape_20260710_v3_197
 ```
 
 原始数据来源：
 
 ```text
 E:\图片库\手机照片云服务中转\🍇数据集
+E:\图片库\手机照片云服务中转\葡萄数据集（V3）
 ```
 
 当前数量：
@@ -20,7 +22,8 @@ E:\图片库\手机照片云服务中转\🍇数据集
 ```text
 基础数据：302 张 JPG 图片
 困难样本：26 张 JPG 图片
-合计：328 张 JPG 图片
+V3 场景样本：197 张 JPG 图片
+合计：525 张 JPG 图片
 ```
 
 ## 拍摄覆盖情况
@@ -47,6 +50,8 @@ yolo/data/raw/grape_20260708/              原图备份
 yolo/data/annotation_work/grape_20260708/  标注工作目录
 yolo/data/review/grape_20260709_unseen/   hard26 新场景复查图片
 yolo/data/review/hard26_export_check/      hard26 CVAT 导出检查目录
+yolo/data/annotation_work/grape_20260710_v3_all197/  V3 标注工作目录
+yolo/data/review/v3_export_check/          V3 CVAT 导出检查目录
 yolo/data/review/                          待复查图片
 ```
 
@@ -61,13 +66,16 @@ yolo/data/review/                          待复查图片
 
 ## 数据集划分
 
-当前已生成第二版 YOLO 数据集划分：
+当前已生成第三版 YOLO 数据集划分：
 
 ```text
-train: 236 张，497 个框，unripe_grape 256 个，ripe_grape 241 个，含 5 张空标签负样本
+train: 389 张，864 个框，unripe_grape 435 个，ripe_grape 429 个，含 15 张空标签负样本
 val:    60 张，127 个框，unripe_grape  61 个，ripe_grape  66 个
-test:   32 张， 68 个框，unripe_grape  35 个，ripe_grape  33 个
+test:   76 张，133 个框，unripe_grape  57 个，ripe_grape  76 个，含 16 张空标签负样本
 ```
+
+V3 的 197 张图片按完整拍摄场景划分：153 张追加到训练集，44 张保留到测试集，
+避免连续相似照片同时进入训练和测试。
 
 划分记录见：
 
@@ -94,12 +102,18 @@ yolo/data/labels/test/
 python yolo/scripts/prepare_dataset_split.py `
   --extra-images yolo/data/review/grape_20260709_unseen `
   --extra-labels yolo/data/review/hard26_export_check/labels/train `
-  --extra-split train
+  --extra-split train `
+  --extra-images yolo/data/review/v3_split/train_images `
+  --extra-labels yolo/data/review/v3_split/train_labels `
+  --extra-split train `
+  --extra-images yolo/data/review/v3_split/test_images `
+  --extra-labels yolo/data/review/v3_split/test_labels `
+  --extra-split test
 ```
 
 ## 下一步
 
-1. 使用没有参与第二版训练的新图片测试当前模型。
-2. 重点检查叶子、椅子、地面、桌面等背景误检。
-3. 根据新场景测试结果决定是否补拍负样本或增强数据。
+1. 使用 `grape_v3_sceneholdout_cpu_e20/weights/best.pt` 在机器人相机画面上做只读识别演示。
+2. 重点检查空教室里的红色物体误检，以及紫红葡萄在重遮挡下的漏检。
+3. 后续补拍应优先增加新的光照、真实机器人视角和不同葡萄材质，而不是同场景连拍。
 4. 训练记录见 `yolo/TRAINING_NOTES.md`。

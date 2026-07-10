@@ -38,9 +38,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--extra-split",
+        action="append",
         choices=["train", "val", "test"],
-        default="train",
-        help="Split to receive extra images.",
+        default=[],
+        help="Split to receive each extra image directory. Repeat once per --extra-images; defaults to train.",
     )
     return parser.parse_args()
 
@@ -156,6 +157,10 @@ def main() -> None:
     args = parse_args()
     if len(args.extra_images) != len(args.extra_labels):
         raise ValueError("--extra-images and --extra-labels must be provided in pairs.")
+    if args.extra_split and len(args.extra_split) != len(args.extra_images):
+        raise ValueError("--extra-split must be omitted or provided once for each --extra-images.")
+
+    extra_splits = args.extra_split or ["train"] * len(args.extra_images)
 
     image_dir = Path(args.images)
     label_dir = Path(args.labels)
@@ -175,13 +180,15 @@ def main() -> None:
     clean_output(out_root)
     splits = split_items(items, args.train, args.val, args.test, args.seed)
 
-    for extra_image_dir, extra_label_dir in zip(args.extra_images, args.extra_labels):
+    for extra_image_dir, extra_label_dir, target_split in zip(
+        args.extra_images, args.extra_labels, extra_splits
+    ):
         extra_image_path = Path(extra_image_dir)
         extra_label_path = Path(extra_label_dir)
         for image in sorted(extra_image_path.glob("*.jpg")):
             label = extra_label_path / f"{image.stem}.txt"
             counts = label_counts(label)
-            splits[args.extra_split].append({"stem": image.stem, "image": image, "label": label, "classes": counts})
+            splits[target_split].append({"stem": image.stem, "image": image, "label": label, "classes": counts})
 
     for split, split_items_ in splits.items():
         for item in split_items_:
