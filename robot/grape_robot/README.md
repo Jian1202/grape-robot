@@ -49,7 +49,9 @@ grape_robot/
 ├── models/
 │   ├── current.pt
 │   └── archive/
-│       └── grape_v2_20260711_013956.pt
+│       ├── best.pt
+│       ├── grape_v2_20260711_013956.pt
+│       └── grape_v3_20260712_qq_best.pt
 ├── scripts/
 │   └── run_vision.sh
 └── backups/
@@ -123,7 +125,7 @@ models/current.pt
 当前实际模型：
 
 ```text
-models/archive/grape_v2_20260711_013956.pt
+models/archive/best.pt
 ```
 
 查看当前模型指向：
@@ -296,6 +298,67 @@ cp /tmp/track_and_grab.launch.py ~/teams/ctrlteam/grape_robot/launch/track_and_g
 ## 8. 更新 YOLO 模型
 
 新模型不要覆盖旧模型。
+
+### 8.1 在 Mac 本地接入新模型
+
+假设新模型在：
+
+```text
+/Users/zhoubochun/program/grape_robot/best.pt
+```
+
+Mac 终端执行：
+
+```bash
+LOCAL="/Users/zhoubochun/program/grape_robot/grape-robot/robot/grape_robot"
+MODEL_NAME="best.pt"
+
+cp "/Users/zhoubochun/program/grape_robot/best.pt" \
+"$LOCAL/models/archive/$MODEL_NAME"
+
+ln -sfn "archive/$MODEL_NAME" \
+"$LOCAL/models/current.pt"
+```
+
+检查：
+
+```bash
+readlink "$LOCAL/models/current.pt"
+
+shasum -a 256 "$LOCAL/models/current.pt"
+```
+
+当前新模型 SHA-256：
+
+```text
+7e57e54c7e4b67d89e3a966f38e4a8923b06ed9ea66bbea9af6e1f0f8289d348
+```
+
+### 8.2 上传本地项目到机器人
+
+机器人恢复供电并联网后，在 Mac 终端执行：
+
+```bash
+rsync -avh --progress \
+"/Users/zhoubochun/program/grape_robot/grape-robot/robot/grape_robot/" \
+ubuntu@ubuntu.local:/home/ubuntu/teams/ctrlteam/grape_robot/
+```
+
+上传后在机器人终端检查：
+
+```bash
+readlink -f ~/teams/ctrlteam/grape_robot/models/current.pt
+
+sha256sum ~/teams/ctrlteam/grape_robot/models/current.pt
+```
+
+然后运行：
+
+```bash
+~/teams/ctrlteam/grape_robot/scripts/run_vision.sh
+```
+
+### 8.3 在机器人端直接更新模型
 
 假设新模型已经上传到：
 

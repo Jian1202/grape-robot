@@ -35,6 +35,9 @@ yolo/data/labels/
 
 # Model weights
 *.pt
+!best.pt
+!robot/grape_robot/models/current.pt
+!robot/grape_robot/models/archive/best.pt
 *.onnx
 *.engine
 *.tflite
