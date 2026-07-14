@@ -30,6 +30,14 @@ def launch_setup(context):
     imgsz_arg = DeclareLaunchArgument('imgsz', default_value=imgsz)
     enable_arm = LaunchConfiguration('enable_arm', default='false')
     enable_arm_arg = DeclareLaunchArgument('enable_arm', default_value=enable_arm)
+    depth_scale = LaunchConfiguration('depth_scale_m_per_unit', default='0.001')
+    depth_scale_arg = DeclareLaunchArgument('depth_scale_m_per_unit', default_value=depth_scale)
+    min_valid_points = LaunchConfiguration('min_valid_points', default='20')
+    min_valid_points_arg = DeclareLaunchArgument('min_valid_points', default_value=min_valid_points)
+    min_valid_ratio = LaunchConfiguration('min_valid_ratio', default='0.15')
+    min_valid_ratio_arg = DeclareLaunchArgument('min_valid_ratio', default_value=min_valid_ratio)
+    box_inset_ratio = LaunchConfiguration('box_inset_ratio', default='0.15')
+    box_inset_ratio_arg = DeclareLaunchArgument('box_inset_ratio', default_value=box_inset_ratio)
     if compiled == 'True':
         controller_package_path = get_package_share_directory('controller')
         peripherals_package_path = get_package_share_directory('peripherals')
@@ -58,6 +66,10 @@ def launch_setup(context):
             {'confidence': ParameterValue(confidence, value_type=float)},
             {'imgsz': ParameterValue(imgsz, value_type=int)},
             {'enable_arm': ParameterValue(enable_arm, value_type=bool)},
+            {'depth_scale_m_per_unit': ParameterValue(depth_scale, value_type=float)},
+            {'min_valid_points': ParameterValue(min_valid_points, value_type=int)},
+            {'min_valid_ratio': ParameterValue(min_valid_ratio, value_type=float)},
+            {'box_inset_ratio': ParameterValue(box_inset_ratio, value_type=float)},
         ]
     )
 
@@ -69,6 +81,10 @@ def launch_setup(context):
             confidence_arg,
             imgsz_arg,
             enable_arm_arg,
+            depth_scale_arg,
+            min_valid_points_arg,
+            min_valid_ratio_arg,
+            box_inset_ratio_arg,
             depth_camera_launch,
             controller_launch,
             track_and_grab_node,

@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "scenario": "D01_EMPTY_VIEW",
+  "frame_count": 10,
+  "repeat_count": 3,
+  "total_inferences": 30,
+  "capture_detection_counts": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  "replay_detection_counts": [
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  ],
+  "all_zero_detections": true,
+  "deterministic": true,
+  "model_sha256": "d3c3173f1c4001461baeb2829bd543271aa3dcf5c22c9dd4a5e377163348beee",
+  "model_matches_capture": true,
+  "confidence_threshold": 0.4,
+  "inference_image_size": 320,
+  "old_target_state_verified": false,
+  "old_target_state_note": "本脚本只重放检测器；旧目标清除需在部署后的detection-only节点上另行验证。",
+  "sample": "docs/evidence/rgbd-localization-validation-20260714/samples/d01-empty-10f-20260714.npz",
+  "sample_sha256": "1a6bd56ff55116d012c719160f2185f4948a35af148aed66497e7e03a6a6e48b"
+}

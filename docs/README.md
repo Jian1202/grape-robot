@@ -24,8 +24,9 @@
 1. [ROS2 关键节点与话题](reference/03-ROS2关键节点与话题.md)
 2. [机械臂控制接口](reference/04-机械臂控制接口.md)
 3. [机械臂动作组文件](reference/05-机械臂动作组文件.md)
-4. [ROS2 接口合同](governance/ROS2_INTERFACE_CONTRACT.md)
-5. [开发与实车放行关卡](governance/DEVELOPMENT_GATES.md)
+4. [SSH 远程接入与安全调试](reference/10-SSH远程接入与安全调试.md)
+5. [ROS2 接口合同](governance/ROS2_INTERFACE_CONTRACT.md)
+6. [开发与实车放行关卡](governance/DEVELOPMENT_GATES.md)
 
 ### YOLO 与现场测试组员
 
