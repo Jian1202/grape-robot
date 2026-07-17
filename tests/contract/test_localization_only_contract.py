@@ -88,7 +88,12 @@ class LocalizationOnlyContractTest(unittest.TestCase):
         self.assertIn("LaunchConfiguration('enable_arm', default='false')", launch_source)
         self.assertIn("enable_arm:=false", run_source)
         self.assertIn('cp "$LOCALIZATION_FILE"', run_source)
+        self.assertIn('cp "$STABILITY_FILE"', run_source)
+        self.assertIn('"$SRC_DIR/target_stability.py"', run_source)
         self.assertIn('DEPTH_SCALE_M_PER_UNIT:-0.001', run_source)
+        self.assertIn('STABILITY_REQUIRED_FRAMES:-3', run_source)
+        self.assertIn('STABILITY_MAX_POSITION_DELTA_M:-0.03', run_source)
+        self.assertIn('STABILITY_MAX_TARGET_AGE_S:-0.2', run_source)
         self.assertIn(
             "LaunchConfiguration('stability_required_frames', default='3')",
             launch_source,
