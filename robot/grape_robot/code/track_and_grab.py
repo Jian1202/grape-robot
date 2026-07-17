@@ -36,6 +36,13 @@ try:
         intrinsics_from_camera_info,
         localize_detection,
     )
+    from .target_stability import (
+        ObservationGenerationGuard,
+        StabilityConfig,
+        StabilityFailure,
+        TargetStabilityTracker,
+        stability_config_from_values,
+    )
 except ImportError:
     # 兼容在源码目录直接执行脚本；ROS2 console_script 使用上面的包内导入。
     from grape_localization import (
@@ -45,6 +52,13 @@ except ImportError:
         enforce_localization_only,
         intrinsics_from_camera_info,
         localize_detection,
+    )
+    from target_stability import (
+        ObservationGenerationGuard,
+        StabilityConfig,
+        StabilityFailure,
+        TargetStabilityTracker,
+        stability_config_from_values,
     )
 
 
@@ -270,6 +284,9 @@ class TrackAndGrabNode(Node):
             'min_valid_points': 20,
             'min_valid_ratio': 0.15,
             'box_inset_ratio': 0.15,
+            'stability_required_frames': 3,
+            'stability_max_position_delta_m': 0.03,
+            'stability_max_target_age_s': 0.2,
         }
         for parameter_name, default_value in parameter_defaults.items():
             if not self.has_parameter(parameter_name):
@@ -288,6 +305,17 @@ class TrackAndGrabNode(Node):
             min_valid_ratio=float(self.get_parameter('min_valid_ratio').value),
             box_inset_ratio=float(self.get_parameter('box_inset_ratio').value),
         )
+        self.stability_tracker = TargetStabilityTracker(
+            stability_config_from_values(
+                self.get_parameter('stability_required_frames').value,
+                self.get_parameter('stability_max_position_delta_m').value,
+                self.get_parameter('stability_max_target_age_s').value,
+            )
+        )
+        self.target_state_lock = threading.Lock()
+        self.observation_guard = ObservationGenerationGuard()
+        self.observation_guard.reset(self.ros_now_s())
+        self.stability_result = self.stability_tracker.reset()
 
         # 当前阶段不创建执行器 publisher 或运动学 client，避免检测-only节点获得动作通道。
         self.joints_pub = None
@@ -373,30 +401,69 @@ class TrackAndGrabNode(Node):
     def shutdown(self, signum, frame):
         self.running = False
 
+    def _clear_image_queue_locked(self):
+        while True:
+            try:
+                self.image_queue.get_nowait()
+            except queue.Empty:
+                return
+
+    def _invalidate_target_state_locked(self):
+        self.observation_guard.reset(self.ros_now_s())
+        self.stability_result = self.stability_tracker.reset()
+        self._clear_image_queue_locked()
+
+    def _update_stability_for_generation(
+        self,
+        generation,
+        observation_timestamp_s,
+        *,
+        position,
+        failure=None,
+    ):
+        with self.target_state_lock:
+            if not self.observation_guard.accepts(
+                generation, observation_timestamp_s
+            ):
+                return False, self.stability_result
+            self.stability_result = self.stability_tracker.update(
+                observation_timestamp_s=observation_timestamp_s,
+                now_s=self.ros_now_s(),
+                position=position,
+                failure=failure,
+            )
+            return True, self.stability_result
+
     def set_color_srv_callback(self, request, response):
         self.get_logger().info('\033[1;32m%s\033[0m' % "set_color")
-        self.target_color = request.data
-        self.tracker = ColorTracker(self.target_color)
+        with self.target_state_lock:
+            self.target_color = request.data
+            self.tracker = ColorTracker(self.target_color)
+            self.start = True
+            self._invalidate_target_state_locked()
         self.get_logger().info('\033[1;32mset color: %s\033[0m' % self.target_color)
-        self.start = True
         response.success = True
         response.message = "set_color"
         return response
 
     def start_srv_callback(self, request, response):
         self.get_logger().info('\033[1;32m%s\033[0m' % "start")
-        self.start = True
+        with self.target_state_lock:
+            self.start = True
+            self._invalidate_target_state_locked()
         response.success = True
         response.message = "start"
         return response
 
     def stop_srv_callback(self, request, response):
         self.get_logger().info('\033[1;32m%s\033[0m' % "stop")
-        self.start = False
-        self.moving = False
-        self.count = 0
-        self.last_pitch_yaw = (0, 0)
-        self.last_position = (0, 0, 0)
+        with self.target_state_lock:
+            self.start = False
+            self.moving = False
+            self.count = 0
+            self.last_pitch_yaw = (0, 0)
+            self.last_position = (0, 0, 0)
+            self._invalidate_target_state_locked()
         if self.enable_arm:
             set_servo_position(self.joints_pub, 1, ((1, 500), (2, 720), (3, 100), (4, 120), (5, 500), (10, 200)))
         response.success = True
@@ -410,11 +477,24 @@ class TrackAndGrabNode(Node):
                 return future.result()
 
     def multi_callback(self, ros_rgb_image, ros_depth_image, depth_camera_info):
-        if self.image_queue.full():
-            # 如果队列已满，丢弃最旧的图像(if the queue is full, discard the oldest image)
-            self.image_queue.get()
-        # 将图像放入队列(put the image into the queue)
-        self.image_queue.put((ros_rgb_image, ros_depth_image, depth_camera_info))
+        observation_timestamp_s = self.image_timestamp_s(ros_rgb_image)
+        with self.target_state_lock:
+            generation = self.observation_guard.generation
+            if not self.observation_guard.accepts(
+                generation, observation_timestamp_s
+            ):
+                return
+            if self.image_queue.full():
+                # 如果队列已满，丢弃最旧的图像(if the queue is full, discard the oldest image)
+                self.image_queue.get_nowait()
+            self.image_queue.put_nowait(
+                (
+                    generation,
+                    ros_rgb_image,
+                    ros_depth_image,
+                    depth_camera_info,
+                )
+            )
 
     def localize_target(self, depth_image, depth_camera_info, target_box):
         """调用纯算法定位；缺少元数据时返回可显示的失败文本。"""
@@ -452,7 +532,9 @@ class TrackAndGrabNode(Node):
         )
         return result, result.failure.value
 
-    def draw_localization_result(self, image, result, failure_text):
+    def draw_localization_result(
+        self, image, result, failure_text, stability_result
+    ):
         if result is not None and result.success:
             pixel_x, pixel_y = result.projected_color_pixel
             cv2.circle(
@@ -480,6 +562,37 @@ class TrackAndGrabNode(Node):
             2,
             cv2.LINE_AA,
         )
+        if stability_result.stable:
+            stability_text = 'TARGET STABLE'
+            stability_color = (0, 255, 0)
+        elif stability_result.failure == StabilityFailure.WARMING_UP:
+            stability_text = (
+                f'TARGET WARMING {stability_result.consecutive_successes}/'
+                f'{self.stability_tracker.config.required_frames}'
+            )
+            stability_color = (255, 220, 0)
+        else:
+            stability_text = f'TARGET INVALID: {stability_result.failure.value}'
+            stability_color = (255, 80, 80)
+        cv2.putText(
+            image,
+            stability_text,
+            (10, 55),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            stability_color,
+            2,
+            cv2.LINE_AA,
+        )
+
+    @staticmethod
+    def image_timestamp_s(image_msg):
+        return float(image_msg.header.stamp.sec) + float(
+            image_msg.header.stamp.nanosec
+        ) * 1e-9
+
+    def ros_now_s(self):
+        return self.get_clock().now().nanoseconds * 1e-9
 
     def get_endpoint(self):
         endpoint = self.send_request(self.get_current_pose_client, GetRobotPose.Request()).pose
@@ -531,12 +644,37 @@ class TrackAndGrabNode(Node):
     def main(self):
         while self.running:
             try:
-                ros_rgb_image, ros_depth_image, depth_camera_info = self.image_queue.get(block=True, timeout=1)
+                queue_timeout_s = min(
+                    0.1, self.stability_tracker.config.max_target_age_s
+                )
+                (
+                    generation,
+                    ros_rgb_image,
+                    ros_depth_image,
+                    depth_camera_info,
+                ) = self.image_queue.get(block=True, timeout=queue_timeout_s)
             except queue.Empty:
+                with self.target_state_lock:
+                    self.stability_result = self.stability_tracker.evaluate(
+                        now_s=self.ros_now_s()
+                    )
                 if not self.running:
                     break
                 else:
                     continue
+            observation_timestamp_s = self.image_timestamp_s(ros_rgb_image)
+            with self.target_state_lock:
+                if not self.observation_guard.accepts(
+                    generation, observation_timestamp_s
+                ):
+                    continue
+                tracker = self.tracker
+                should_process = (
+                    tracker is not None
+                    and not self.moving
+                    and time.time() > self.start_stamp
+                    and self.start
+                )
             try:
                 rgb_image = np.ndarray(shape=(ros_rgb_image.height, ros_rgb_image.width, 3), dtype=np.uint8, buffer=ros_rgb_image.data)
                 depth_image = np.ndarray(shape=(ros_depth_image.height, ros_depth_image.width), dtype=np.uint16, buffer=ros_depth_image.data)
@@ -553,8 +691,8 @@ class TrackAndGrabNode(Node):
 
                 depth_color_map = cv2.applyColorMap(sim_depth_image.astype(np.uint8), cv2.COLORMAP_JET)
 
-                if self.tracker is not None and self.moving == False and time.time() > self.start_stamp and self.start:
-                    result_image, p_y, center, r, target_box = self.tracker.proc(
+                if should_process:
+                    result_image, p_y, center, r, target_box = tracker.proc(
                         rgb_image,
                         result_image,
                         self.lab_data,
@@ -578,13 +716,47 @@ class TrackAndGrabNode(Node):
                             depth_camera_info,
                             target_box,
                         )
+                        if (
+                            localization_result is not None
+                            and localization_result.success
+                        ):
+                            accepted, stability_result = self._update_stability_for_generation(
+                                generation,
+                                observation_timestamp_s,
+                                position=localization_result.point_color_camera,
+                            )
+                        else:
+                            accepted, stability_result = self._update_stability_for_generation(
+                                generation,
+                                observation_timestamp_s,
+                                position=None,
+                                failure=StabilityFailure.LOCALIZATION_FAILED,
+                            )
+                        if not accepted:
+                            continue
                         self.draw_localization_result(
                             result_image,
                             localization_result,
                             failure_text,
+                            stability_result,
                         )
                         # 定位结果只用于显示；本阶段无论成功或失败都禁止进入动作路径。
                         p_y = None
+                    elif p_y is None and not self.enable_arm:
+                        accepted, stability_result = self._update_stability_for_generation(
+                            generation,
+                            observation_timestamp_s,
+                            position=None,
+                            failure=StabilityFailure.NO_DETECTION,
+                        )
+                        if not accepted:
+                            continue
+                        self.draw_localization_result(
+                            result_image,
+                            None,
+                            StabilityFailure.NO_DETECTION.value,
+                            stability_result,
+                        )
 
                     if p_y is not None:
                         set_servo_position(self.joints_pub, 0.02, ((1, int(p_y[1])), (4, int(p_y[0]))))
@@ -664,6 +836,12 @@ class TrackAndGrabNode(Node):
                         self.running = False
 
             except Exception as e:
+                self._update_stability_for_generation(
+                    generation,
+                    observation_timestamp_s,
+                    position=None,
+                    failure=StabilityFailure.LOCALIZATION_FAILED,
+                )
                 self.get_logger().info('error1: ' + str(e))
         rclpy.shutdown()
 

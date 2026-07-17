@@ -38,6 +38,17 @@ def launch_setup(context):
     min_valid_ratio_arg = DeclareLaunchArgument('min_valid_ratio', default_value=min_valid_ratio)
     box_inset_ratio = LaunchConfiguration('box_inset_ratio', default='0.15')
     box_inset_ratio_arg = DeclareLaunchArgument('box_inset_ratio', default_value=box_inset_ratio)
+    stability_required_frames = LaunchConfiguration('stability_required_frames', default='3')
+    stability_required_frames_arg = DeclareLaunchArgument(
+        'stability_required_frames', default_value=stability_required_frames)
+    stability_max_position_delta = LaunchConfiguration(
+        'stability_max_position_delta_m', default='0.03')
+    stability_max_position_delta_arg = DeclareLaunchArgument(
+        'stability_max_position_delta_m', default_value=stability_max_position_delta)
+    stability_max_target_age = LaunchConfiguration(
+        'stability_max_target_age_s', default='0.2')
+    stability_max_target_age_arg = DeclareLaunchArgument(
+        'stability_max_target_age_s', default_value=stability_max_target_age)
     if compiled == 'True':
         controller_package_path = get_package_share_directory('controller')
         peripherals_package_path = get_package_share_directory('peripherals')
@@ -70,6 +81,9 @@ def launch_setup(context):
             {'min_valid_points': ParameterValue(min_valid_points, value_type=int)},
             {'min_valid_ratio': ParameterValue(min_valid_ratio, value_type=float)},
             {'box_inset_ratio': ParameterValue(box_inset_ratio, value_type=float)},
+            {'stability_required_frames': ParameterValue(stability_required_frames, value_type=int)},
+            {'stability_max_position_delta_m': ParameterValue(stability_max_position_delta, value_type=float)},
+            {'stability_max_target_age_s': ParameterValue(stability_max_target_age, value_type=float)},
         ]
     )
 
@@ -85,6 +99,9 @@ def launch_setup(context):
             min_valid_points_arg,
             min_valid_ratio_arg,
             box_inset_ratio_arg,
+            stability_required_frames_arg,
+            stability_max_position_delta_arg,
+            stability_max_target_age_arg,
             depth_camera_launch,
             controller_launch,
             track_and_grab_node,

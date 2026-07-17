@@ -204,12 +204,8 @@ ps -eo pid,comm,args \
 加载环境后执行只读 ROS2 查询：
 
 ```bash
-source /opt/ros/humble/setup.zsh
-source ~/ros2_ws/install/setup.zsh
 
-ros2 node list
-ros2 topic list -t
-ros2 service list -t
+
 ```
 
 这些命令只查询 ROS2 图，不调用服务、不发布消息。
