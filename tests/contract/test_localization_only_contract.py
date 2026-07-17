@@ -98,6 +98,15 @@ class LocalizationOnlyContractTest(unittest.TestCase):
         self.assertIn('include_bringup:=false', run_source)
         self.assertIn('/gemini_camera/rgb/image_raw', run_source)
         self.assertIn('/gemini_camera/depth_to_color', run_source)
+        self.assertIn(
+            'ORBBEC_SETUP="/home/ubuntu/third_party/orbbec_ws/install/setup.bash"',
+            run_source,
+        )
+        self.assertIn('source "$ORBBEC_SETUP"', run_source)
+        self.assertIn(
+            "python3 -c 'from orbbec_camera_msgs.msg import Extrinsics'",
+            run_source,
+        )
         self.assertNotIn('systemctl stop start_app_node.service', run_source)
         self.assertIn(
             "LaunchConfiguration('stability_required_frames', default='3')",
