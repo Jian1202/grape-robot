@@ -94,6 +94,11 @@ class LocalizationOnlyContractTest(unittest.TestCase):
         self.assertIn('STABILITY_REQUIRED_FRAMES:-3', run_source)
         self.assertIn('STABILITY_MAX_POSITION_DELTA_M:-0.03', run_source)
         self.assertIn('STABILITY_MAX_TARGET_AGE_S:-0.2', run_source)
+        self.assertIn("LaunchConfiguration('include_bringup', default='false')", launch_source)
+        self.assertIn('include_bringup:=false', run_source)
+        self.assertIn('/gemini_camera/rgb/image_raw', run_source)
+        self.assertIn('/gemini_camera/depth_to_color', run_source)
+        self.assertNotIn('systemctl stop start_app_node.service', run_source)
         self.assertIn(
             "LaunchConfiguration('stability_required_frames', default='3')",
             launch_source,

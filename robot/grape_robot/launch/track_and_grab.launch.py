@@ -3,6 +3,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.conditions import IfCondition
 from launch import LaunchDescription, LaunchService
 from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -49,6 +50,9 @@ def launch_setup(context):
         'stability_max_target_age_s', default='0.2')
     stability_max_target_age_arg = DeclareLaunchArgument(
         'stability_max_target_age_s', default_value=stability_max_target_age)
+    include_bringup = LaunchConfiguration('include_bringup', default='false')
+    include_bringup_arg = DeclareLaunchArgument(
+        'include_bringup', default_value=include_bringup)
     if compiled == 'True':
         controller_package_path = get_package_share_directory('controller')
         peripherals_package_path = get_package_share_directory('peripherals')
@@ -58,10 +62,12 @@ def launch_setup(context):
     depth_camera_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(peripherals_package_path, 'launch/depth_camera.launch.py')),
+        condition=IfCondition(include_bringup),
     )
     controller_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(controller_package_path, 'launch/controller.launch.py')),
+        condition=IfCondition(include_bringup),
     )
 
     track_and_grab_node = Node(
@@ -102,6 +108,7 @@ def launch_setup(context):
             stability_required_frames_arg,
             stability_max_position_delta_arg,
             stability_max_target_age_arg,
+            include_bringup_arg,
             depth_camera_launch,
             controller_launch,
             track_and_grab_node,

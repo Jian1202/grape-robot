@@ -38,15 +38,22 @@ set -u
 cd "$WORKSPACE"
 colcon build --packages-select example --symlink-install
 
-echo "[4/5] 停止可能占用相机的 App 服务"
-sudo systemctl stop start_app_node.service
-
-restore_app() {
-    echo
-    echo "[退出] 恢复 App 服务"
-    sudo systemctl start start_app_node.service >/dev/null 2>&1 || true
-}
-trap restore_app EXIT
+echo "[4/5] 检查现有 App 提供的 RGB-D 输入"
+required_topics=(
+    /gemini_camera/rgb/image_raw
+    /gemini_camera/depth/image_raw
+    /gemini_camera/depth/camera_info
+    /gemini_camera/rgb/camera_info
+    /gemini_camera/depth_to_color
+)
+topic_list="$(ros2 topic list)"
+for topic in "${required_topics[@]}"; do
+    if ! grep -Fxq "$topic" <<<"$topic_list"; then
+        echo "缺少 RGB-D 输入：$topic"
+        echo "检测-only模式不会自动启动相机或控制器"
+        exit 1
+    fi
+done
 
 echo "[5/5] 启动 YOLO 安全视觉模式"
 set +u
@@ -64,5 +71,6 @@ ros2 launch example track_and_grab.launch.py \
     stability_required_frames:="${STABILITY_REQUIRED_FRAMES:-3}" \
     stability_max_position_delta_m:="${STABILITY_MAX_POSITION_DELTA_M:-0.03}" \
     stability_max_target_age_s:="${STABILITY_MAX_TARGET_AGE_S:-0.2}" \
+    include_bringup:=false \
     enable_arm:=false \
     start:=true
