@@ -6,6 +6,7 @@
 
 - [2026-07-14 ROSLander 实机只读接口与源码快照](robot-snapshot-20260714/README.md)
 - [2026-07-14 RGB-D葡萄定位验证方案与过程记录](rgbd-localization-validation-20260714/README.md)
+- [2026-07-19 固定工位基本夹取接口与控制器源码只读快照](basic-fixed-pick-20260719/README.md)
 
 快照只证明其中列出的命令和取证时刻；未列出的坐标方向、硬件参数和动作安全性仍保持 `UNKNOWN`。
 

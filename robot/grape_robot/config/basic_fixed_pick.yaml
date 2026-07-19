@@ -1,0 +1,37 @@
+# 固定工位基本夹取配置模板。
+# 所有 null 必须由现场 capture 只读采集并人工复核；不得从旧案例猜测。
+hardware_enabled: false
+
+reference_joint1_rad: null
+
+poses:
+  # 顺序固定为 joint2, joint3, joint4, joint5，单位 rad。
+  pregrasp: null
+  grasp: null
+  lift: null
+
+gripper:
+  # r_joint，单位 rad；开闭方向必须由现场只读状态与单独低风险验证确认。
+  open_rad: null
+  close_rad: null
+
+motion:
+  arm_duration_s: 3.0
+  gripper_duration_s: 1.5
+  timeout_margin_s: 2.0
+
+safety:
+  joint_state_max_age_s: 0.5
+  joint1_tolerance_rad: 0.05
+  arm_tolerance_rad: 0.08
+  gripper_tolerance_rad: 0.08
+  max_step_delta_rad: 0.20
+  min_gripper_motion_rad: 0.02
+  servo_quiet_period_s: 5.0
+
+visual:
+  # 仅用于现场人工对照，不接入动作执行器。
+  reference_depth_m: null
+  depth_tolerance_m: 0.03
+  min_confidence: 0.8
+  display_max_age_s: 0.6

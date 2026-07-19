@@ -1,6 +1,6 @@
 # 项目事实基线
 
-最后整理：2026-07-14
+最后整理：2026-07-19
 
 本文件是当前项目事实的集中入口。后续 Codex、组员、README 和实施方案不得把本文件中的 `UNKNOWN`、`INFERRED` 或 `REFERENCE_ONLY` 内容写成已经实现或已经验证。
 
@@ -54,6 +54,11 @@
 | F-207 | 两个运动学服务的类型、字段和服务端“无解时 pulse为空但success仍为true”行为已确认 | `VERIFIED_ROBOT` | [2026-07-14 实机只读快照](../evidence/robot-snapshot-20260714/README.md) |
 | F-208 | Gemini RGB为`640×480 rgb8`，深度为`640×400 16UC1`，`depth_registration=false`；深度值为毫米，`depth_to_color.translation`为米 | `VERIFIED_ROBOT` | [2026-07-14 实机只读快照](../evidence/robot-snapshot-20260714/README.md) |
 | F-209 | 运动学服务网络等待、调用超时和取消行为尚未形成合同 | `UNKNOWN` | 当前客户端已禁用，恢复前必须取证并实现 |
+| F-210 | `/controller_manager`提供机械臂、夹爪和joint1三个`FollowJointTrajectory` action；机械臂action控制`joint2`–`joint5`，夹爪action控制`r_joint` | `VERIFIED_ROBOT` | [2026-07-19固定工位基本夹取只读快照](../evidence/basic-fixed-pick-20260719/README.md) |
+| F-211 | 厂商action服务端把rad转换为pulse后直接调用servo manager，支持执行期间取消，但结束时不检查实际到位误差 | `VERIFIED_ROBOT` | 同上，厂商源码SHA-256及摘录 |
+| F-212 | 当前新增的固定工位夹取执行器不创建publisher，不使用旧运动学/舵机调用；默认inspect只读，execute需要三重许可并在每步后读取joint_states复核 | `VERIFIED_REPO` | `basic_fixed_pick.py`、纯算法和合同测试 |
+| F-213 | 2026-07-19快照时`/servo_controller`有7个发布端点，6秒观察窗口没有收到消息；发布者之间不存在可证明的系统级互斥 | `VERIFIED_ROBOT`（端点与本次窗口）/ `UNKNOWN`（长期互斥） | [2026-07-19只读快照](../evidence/basic-fixed-pick-20260719/README.md) |
+| F-214 | 固定工位的pregrasp/grasp/lift关节姿态、`r_joint`开闭方向和位置、葡萄接触后的安全夹持量尚未采集和动作验证 | `UNKNOWN` | 配置模板保持null，禁止从旧pulse值推算 |
 
 ## 5. 当前禁止升级为事实的内容
 
@@ -75,6 +80,8 @@
 - 一组同步RGB、深度、两路CameraInfo和外参固定样本；
 - 已知距离标定物的映射与三维误差；
 - 多个`/servo_controller`发布者的互斥机制。
+- 固定工位pregrasp、grasp、lift姿态和相邻姿态安全间隔；
+- `r_joint`张开/闭合方向、空载安全位置及接触葡萄时的可接受行程。
 
 还需要人工记录：
 

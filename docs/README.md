@@ -27,6 +27,7 @@
 4. [SSH 远程接入与安全调试](reference/10-SSH远程接入与安全调试.md)
 5. [ROS2 接口合同](governance/ROS2_INTERFACE_CONTRACT.md)
 6. [开发与实车放行关卡](governance/DEVELOPMENT_GATES.md)
+7. [固定工位基本夹取只读快照](evidence/basic-fixed-pick-20260719/README.md)
 
 ### YOLO 与现场测试组员
 

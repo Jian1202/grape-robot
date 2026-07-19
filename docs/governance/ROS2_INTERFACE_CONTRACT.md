@@ -1,6 +1,6 @@
 # ROS2 与外部接口合同
 
-最后整理：2026-07-14
+最后整理：2026-07-19
 
 本文件集中记录当前代码依赖的 ROS2 接口和外部 Python 符号。它的目的不是证明这些接口在所有机器人版本中都可用，而是防止开发者或 Codex 根据习惯编造名称、类型和字段。
 
@@ -25,6 +25,11 @@
 | 当前安全模式 | 定位-only；`enable_arm=true` 拒绝启动 | `VERIFIED_REPO` | `grape_localization.enforce_localization_only` |
 | 机器人实际安装包与当前未提交代码的同步关系 | 2026-07-14快照时一致；本轮修改尚未部署 | `UNKNOWN` | [实机只读快照](../evidence/robot-snapshot-20260714/README.md) |
 
+固定工位基本夹取使用独立的 `BasicFixedPickNode`，不解除上述检测-only节点的
+动作硬禁用。其默认 `inspect` 模式只读；`execute` 必须经过配置许可、环境令牌、
+启动前状态检查和三次人工确认。该执行器目前仅完成仓库实现与离线测试，尚未发送过
+实车 action goal，状态为 `VERIFIED_REPO`。
+
 ## 3. 订阅输入
 
 | 名称 | 类型 | 用途 | 当前证据 | 实车放行要求 |
@@ -35,11 +40,23 @@
 | `/gemini_camera/rgb/camera_info` | `sensor_msgs/msg/CameraInfo` | RGB相机内参 | `VERIFIED_ROBOT` | 当前代码新增订阅；核对固定样本与本次快照参数一致 |
 | `/gemini_camera/depth_to_color` | `orbbec_camera_msgs/msg/Extrinsics` | 深度到RGB外参，translation单位为米 | `VERIFIED_ROBOT` | 驱动`obExtrinsicsToMsg()`定义；当前代码按Reliable + Transient Local订阅 |
 
-当前通过 `message_filters.ApproximateTimeSynchronizer` 同步三路输入，代码注释与实参的时间容差存在文字差异，后续修改时应以实际参数和测试结果为准。
+当前通过 `message_filters.ApproximateTimeSynchronizer` 只同步 RGB 与深度图；
+两路 `CameraInfo` 和外参由独立回调缓存，处理图像对时读取缓存快照。
+
+固定工位基本夹取执行器新增以下只读订阅：
+
+| 名称 | 类型 | 用途 | 当前证据 | 失败语义 |
+| --- | --- | --- | --- | --- |
+| `/controller_manager/joint_states` | `sensor_msgs/msg/JointState` | 启动前姿态与动作后到位复核，位置单位为rad | `VERIFIED_ROBOT` | 缺失、过期、关节不全或超容差时拒绝/停止后续动作 |
+| `/servo_controller` | `servo_controller_msgs/msg/ServosPosition` | 竞争动作通道监视；只订阅、不发布 | `VERIFIED_ROBOT` | 静默期或执行中收到任一消息即取消当前goal，不自动恢复 |
 
 ## 4. 发布输出
 
-当前检测-only节点不创建任何执行器 publisher。
+当前检测-only节点和固定工位基本夹取执行器均不创建任何 publisher。
+
+基本夹取执行器通过 ROS2 action client 接触控制器，不向 `/servo_controller`
+发布消息。action goal 会导致真实机械臂或夹爪动作，因此只允许在 `execute` 模式及
+实车关卡通过后使用。
 
 旧抓取方法仍保留 `set_servo_position(...)` 调用源码，但构造器不创建 `/servo_controller` publisher，且 `enable_arm=true` 会在初始化时被拒绝。恢复任何动作能力前必须另行评审，不得删除安全保护后直接复用旧方法。
 
@@ -48,6 +65,19 @@
 当前检测-only节点不创建运动学、控制器或相机状态变更客户端，也不调用服务。
 
 旧抓取方法中仍保留 `/kinematics/get_current_pose` 与 `/kinematics/set_pose_target` 的调用源码。实机快照已经确认类型、字段和IK无解行为；恢复客户端前仍必须实现超时、取消、`GetRobotPose.solution`检查和空`pulse`失败退出。
+
+固定工位基本夹取执行器只登记以下客户端：
+
+| 名称 | 类型 | 控制范围/用途 | 状态与来源 |
+| --- | --- | --- | --- |
+| `/arm_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `joint2`–`joint5`，单位rad | `VERIFIED_ROBOT`；2026-07-19 `ros2 action list -t`、`ros2 node info /controller_manager`及控制器配置 |
+| `/gripper_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `r_joint`，单位rad | `VERIFIED_ROBOT`；同上 |
+| `/object_tracking/exit` | `std_srvs/srv/Trigger` | execute前停止现有物体跟踪节点，随后检查动作话题静默 | `VERIFIED_ROBOT`；2026-07-19 `ros2 service type` |
+
+厂商 `JointTrajectoryActionController` 会把rad目标转换为pulse并直接调用servo manager；
+它在持续时间结束后报告成功，但源码未核验实际关节误差。因此 action 成功不能单独
+证明到位，客户端必须再读取新鲜的 `joint_states` 并执行容差检查。完整证据见
+[2026-07-19固定工位基本夹取只读快照](../evidence/basic-fixed-pick-20260719/README.md)。
 
 ## 6. 本节点提供的服务
 
@@ -78,6 +108,9 @@ ros2 service list -t | grep track_and_grab
 | `servo_controller.bus_servo_control.set_servo_position` | 旧动作方法发布舵机目标 | `VERIFIED_ROBOT` | 实机确认固定使用`pulse`并直接发布 |
 | `ultralytics.YOLO` | YOLO 模型加载与推理 | `VERIFIED_ROBOT` | 实机版本8.3.182；本轮未重新运行模型 |
 | `grape_localization.localize_detection` | RGB-D投影和稳健三维定位 | `VERIFIED_REPO` | 仓库内纯算法定义与离线单元测试 |
+| `rclpy.action.ActionClient` | 固定工位机械臂/夹爪action客户端 | `VERIFIED_ROBOT` | 机器人端导入成功；action名称和服务端由2026-07-19只读快照确认 |
+| `control_msgs.action.FollowJointTrajectory` | 关节轨迹goal/result | `VERIFIED_ROBOT` | 机器人端`ros2 interface show`及厂商服务端源码 |
+| `yaml.safe_load` | 严格读取现场夹取配置 | `VERIFIED_ROBOT` | 机器人端导入成功；配置值仍须现场采集 |
 
 本仓库当前没有这些机器人厂商 Python 包的完整定义。因此 Codex 可以分析调用点，但不能仅凭本地仓库证明底层行为。
 
@@ -97,6 +130,12 @@ ros2 service list -t | grep track_and_grab
 | `box_inset_ratio` | `0.15` | `VERIFIED_REPO` | 排除检测框边缘背景的收缩比例，必须小于0.5 |
 
 计划中的 `enable_tracking`、`enable_grab`、`enable_detach`、`enable_base_align` 当前只是设计建议，不得写成已经存在。
+
+固定工位基本夹取不新增ROS参数；使用
+`robot/grape_robot/config/basic_fixed_pick.yaml`。模板中动作许可为false，所有现场
+姿态、夹爪开闭位置和参考深度均为null。任何空值、非法类型、非有限值、相邻姿态
+单关节变化超过0.20rad都会在创建action goal前失败关闭。0.20rad只是离线保护上限，
+不是已经过实车验证的抓取参数。
 
 ## 9. 必须在实车保存的接口快照
 
