@@ -330,13 +330,19 @@ class TrackAndGrabNode(Node):
         self.image_queue = queue.Queue(maxsize=2)
         self.endpoint = None
         self.rgb_camera_info = None
+        self.depth_camera_info = None
         self.depth_to_color = None
 
         self.start_stamp = time.time() + 3
 
         rgb_sub = message_filters.Subscriber(self, Image, '/gemini_camera/rgb/image_raw')
         depth_sub = message_filters.Subscriber(self, Image, '/gemini_camera/depth/image_raw')
-        info_sub = message_filters.Subscriber(self, CameraInfo, '/gemini_camera/depth/camera_info')
+        self.create_subscription(
+            CameraInfo,
+            '/gemini_camera/depth/camera_info',
+            self.depth_camera_info_callback,
+            1,
+        )
         self.create_subscription(
             CameraInfo,
             '/gemini_camera/rgb/camera_info',
@@ -354,7 +360,8 @@ class TrackAndGrabNode(Node):
         )
 
         # 同步时间戳, 时间允许有误差在0.03s(synchronize timestamps, allowing a time deviation of up to 0.03 seconds)
-        sync = message_filters.ApproximateTimeSynchronizer([rgb_sub, depth_sub, info_sub], 3, 0.02)
+        # CameraInfo 独立缓存；把低频元数据放入逐帧同步会使新图像等待旧内参消息。
+        sync = message_filters.ApproximateTimeSynchronizer([rgb_sub, depth_sub], 3, 0.02)
         sync.registerCallback(self.multi_callback) #执行反馈函数(execute feedback function)
         
         timer_cb_group = ReentrantCallbackGroup()
@@ -390,6 +397,10 @@ class TrackAndGrabNode(Node):
 
     def rgb_camera_info_callback(self, msg):
         self.rgb_camera_info = msg
+
+    def depth_camera_info_callback(self, msg):
+        with self.target_state_lock:
+            self.depth_camera_info = msg
 
     def depth_to_color_callback(self, msg):
         self.depth_to_color = msg
@@ -476,7 +487,7 @@ class TrackAndGrabNode(Node):
             if future.done() and future.result():
                 return future.result()
 
-    def multi_callback(self, ros_rgb_image, ros_depth_image, depth_camera_info):
+    def multi_callback(self, ros_rgb_image, ros_depth_image):
         observation_timestamp_s = self.image_timestamp_s(ros_rgb_image)
         with self.target_state_lock:
             generation = self.observation_guard.generation
@@ -487,6 +498,7 @@ class TrackAndGrabNode(Node):
             if self.image_queue.full():
                 # 如果队列已满，丢弃最旧的图像(if the queue is full, discard the oldest image)
                 self.image_queue.get_nowait()
+            depth_camera_info = self.depth_camera_info
             self.image_queue.put_nowait(
                 (
                     generation,
@@ -498,6 +510,8 @@ class TrackAndGrabNode(Node):
 
     def localize_target(self, depth_image, depth_camera_info, target_box):
         """调用纯算法定位；缺少元数据时返回可显示的失败文本。"""
+        if depth_camera_info is None:
+            return None, 'DEPTH_CAMERA_INFO_MISSING'
         if self.rgb_camera_info is None:
             return None, 'RGB_CAMERA_INFO_MISSING'
         if self.depth_to_color is None:

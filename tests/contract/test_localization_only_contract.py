@@ -52,6 +52,36 @@ class LocalizationOnlyContractTest(unittest.TestCase):
         self.assertIn("localize_detection(", self.source)
         self.assertIn("# 定位结果只用于显示", self.source)
 
+    def test_frame_sync_does_not_wait_for_camera_info(self):
+        sync_calls = [
+            node
+            for node in ast.walk(self.tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "ApproximateTimeSynchronizer"
+        ]
+        self.assertEqual(len(sync_calls), 1)
+        sync_inputs = sync_calls[0].args[0]
+        self.assertIsInstance(sync_inputs, ast.List)
+        self.assertEqual(
+            [node.id for node in sync_inputs.elts if isinstance(node, ast.Name)],
+            ["rgb_sub", "depth_sub"],
+        )
+
+        callback = self.method_node("multi_callback")
+        self.assertEqual(
+            [argument.arg for argument in callback.args.args],
+            ["self", "ros_rgb_image", "ros_depth_image"],
+        )
+        self.method_node("depth_camera_info_callback")
+
+        localize_constants = {
+            node.value
+            for node in ast.walk(self.method_node("localize_target"))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        self.assertIn("DEPTH_CAMERA_INFO_MISSING", localize_constants)
+
     def test_stability_path_invalidates_missing_and_failed_targets(self):
         self.assertIn("from .target_stability import", self.source)
         main_calls = self.called_attributes(self.method_node("main"))
