@@ -27,8 +27,8 @@
 
 固定工位基本夹取使用独立的 `BasicFixedPickNode`，不解除上述检测-only节点的
 动作硬禁用。其默认 `inspect` 模式只读；`execute` 必须经过配置许可、环境令牌、
-启动前状态检查和三次人工确认。该执行器目前仅完成仓库实现与离线测试，尚未发送过
-实车 action goal，状态为 `VERIFIED_REPO`。
+启动前状态检查和三次人工确认。该执行器已在2026-07-19部署并通过只读inspect，
+但尚未发送过实车 action goal；只读接口为 `VERIFIED_ROBOT`，动作行为仍未验证。
 
 ## 3. 订阅输入
 

@@ -3,8 +3,9 @@
 ## 结论与边界
 
 本次在ROSLander机器人上只读确认了基本夹取所需的标准action、关节状态、
-`/object_tracking/exit`服务和厂商控制器实现。没有发送action goal，没有调用
-`/object_tracking/exit`，没有发布topic，也没有移动机械臂、夹爪或底盘。
+`/object_tracking/exit`服务和厂商控制器实现，并部署新执行器后运行了默认
+`inspect`模式。没有发送action goal，没有调用`/object_tracking/exit`，没有发布
+topic，也没有移动机械臂、夹爪或底盘。
 
 这些证据只允许离线实现和后续分级验证，不证明任何夹取姿态或夹爪位置安全。
 K4仍为“未通过，仅工程上暂按通过继续”，不得写成 `VERIFIED_ROBOT`。
@@ -14,6 +15,7 @@ K4仍为“未通过，仅工程上暂按通过继续”，不得写成 `VERIFIE
 - ROS发行版：Humble
 - 本地分支：`codex/rgbd-localization-validation-20260714`
 - 本地起始提交：`07b1dd6`
+- 部署代码提交：`a88cb12`
 - 实机动作：无
 
 ## 执行的只读命令
@@ -102,6 +104,47 @@ SHA-256: 1a47432fd86bfcb1f9be061d36a59dd6e02f06d5e9b6f17c49681261838f70ee
 
 因此新客户端即使收到action成功，也必须再用新鲜`joint_states`检查实际关节位置。
 
+## 只读部署与inspect
+
+部署前，以下4个目标文件均不存在，因此回滚是只删除本轮新增的同名文件；没有覆盖
+机器人原文件：
+
+```text
+/home/ubuntu/teams/ctrlteam/grape_robot/code/basic_pick_plan.py
+/home/ubuntu/teams/ctrlteam/grape_robot/code/basic_fixed_pick.py
+/home/ubuntu/teams/ctrlteam/grape_robot/config/basic_fixed_pick.yaml
+/home/ubuntu/teams/ctrlteam/grape_robot/scripts/run_basic_pick.sh
+```
+
+部署文件与提交`a88cb12`的SHA-256一致：
+
+```text
+basic_pick_plan.py    3fb0b156f3a782b70e2063a215c16d7ce96f6aee681c77b79656d05e9a997d84
+basic_fixed_pick.py   2ee5300b2121d81838c8de0ec8a4abd875a81f8b248b90fe840200490744631f
+basic_fixed_pick.yaml c35746b1a0068fc22c158864625cd4d7347940951bce9ceb25c8595cabc18c84
+run_basic_pick.sh     0e440f0ece03130b2c88842b21ccf68d968dc55936ff56223aa464ef9c017f14
+```
+
+机器人项目目录中的Python语法和Shell语法检查通过。随后运行：
+
+```bash
+/home/ubuntu/teams/ctrlteam/grape_robot/scripts/run_basic_pick.sh inspect
+```
+
+结果：
+
+```text
+arm_action_ready=True
+gripper_action_ready=True
+joint_state_age_s=0.012
+inspect_exit=0
+start_app_node.service=active
+```
+
+inspect打印的单帧关节位置只用于确认字段存在，未写入夹取配置。默认配置仍为
+`hardware_enabled: false`且现场值为null；机器人端纯配置加载确认其失败关闭。inspect
+退出后又观察4秒`/servo_controller`，没有收到消息，App服务仍为active。
+
 ## UNKNOWN与后续关卡
 
 - `UNKNOWN`：pregrasp、grasp、lift的安全关节姿态；
@@ -109,6 +152,7 @@ SHA-256: 1a47432fd86bfcb1f9be061d36a59dd6e02f06d5e9b6f17c49681261838f70ee
 - `UNKNOWN`：夹住真实葡萄后的最小/最大安全行程；
 - `UNKNOWN`：7个`/servo_controller`发布端点的系统级互斥；
 - `UNKNOWN`：动作取消后实际舵机停止延迟；
-- 未验证：新执行器尚未部署，尚未进行inspect/capture或任何action动作测试；
+- 已验证：新执行器已部署，默认inspect只读模式通过；
+- 未验证：尚未进行现场姿态capture或任何action动作测试；
 - 未验证：基本夹取、抬升和重复性；
 - 不在本轮：向下脱离、底盘对准、视觉自动闭环、自动重试和自动归位。

@@ -56,7 +56,7 @@
 | F-209 | 运动学服务网络等待、调用超时和取消行为尚未形成合同 | `UNKNOWN` | 当前客户端已禁用，恢复前必须取证并实现 |
 | F-210 | `/controller_manager`提供机械臂、夹爪和joint1三个`FollowJointTrajectory` action；机械臂action控制`joint2`–`joint5`，夹爪action控制`r_joint` | `VERIFIED_ROBOT` | [2026-07-19固定工位基本夹取只读快照](../evidence/basic-fixed-pick-20260719/README.md) |
 | F-211 | 厂商action服务端把rad转换为pulse后直接调用servo manager，支持执行期间取消，但结束时不检查实际到位误差 | `VERIFIED_ROBOT` | 同上，厂商源码SHA-256及摘录 |
-| F-212 | 当前新增的固定工位夹取执行器不创建publisher，不使用旧运动学/舵机调用；默认inspect只读，execute需要三重许可并在每步后读取joint_states复核 | `VERIFIED_REPO` | `basic_fixed_pick.py`、纯算法和合同测试 |
+| F-212 | 当前新增的固定工位夹取执行器不创建publisher，不使用旧运动学/舵机调用；默认inspect只读，execute需要三重许可并在每步后读取动作结束后新到达的joint_states复核 | `VERIFIED_REPO`（动作路径）/ `VERIFIED_ROBOT`（只读inspect） | `basic_fixed_pick.py`、纯算法和合同测试、[2026-07-19只读部署记录](../evidence/basic-fixed-pick-20260719/README.md) |
 | F-213 | 2026-07-19快照时`/servo_controller`有7个发布端点，6秒观察窗口没有收到消息；发布者之间不存在可证明的系统级互斥 | `VERIFIED_ROBOT`（端点与本次窗口）/ `UNKNOWN`（长期互斥） | [2026-07-19只读快照](../evidence/basic-fixed-pick-20260719/README.md) |
 | F-214 | 固定工位的pregrasp/grasp/lift关节姿态、`r_joint`开闭方向和位置、葡萄接触后的安全夹持量尚未采集和动作验证 | `UNKNOWN` | 配置模板保持null，禁止从旧pulse值推算 |
 
