@@ -24,6 +24,8 @@ from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from ros_robot_controller_msgs.msg import GetBusServoCmd
+from ros_robot_controller_msgs.srv import GetBusServoState
 from sensor_msgs.msg import JointState
 from servo_controller_msgs.msg import ServosPosition
 from std_srvs.srv import Trigger
@@ -33,8 +35,10 @@ try:
     from .basic_pick_plan import (
         ARM_JOINT_NAMES,
         GRIPPER_JOINT_NAME,
+        JOINT_TO_SERVO_ID,
         PickStage,
         accept_confirmation,
+        actual_pulses_to_joint_positions,
         config_from_mapping,
         evaluate_preflight,
         gripper_moved_toward_target,
@@ -44,8 +48,10 @@ except ImportError:
     from basic_pick_plan import (
         ARM_JOINT_NAMES,
         GRIPPER_JOINT_NAME,
+        JOINT_TO_SERVO_ID,
         PickStage,
         accept_confirmation,
+        actual_pulses_to_joint_positions,
         config_from_mapping,
         evaluate_preflight,
         gripper_moved_toward_target,
@@ -58,6 +64,7 @@ GRIPPER_ACTION_NAME = "/gripper_controller/follow_joint_trajectory"
 JOINT_STATES_TOPIC = "/controller_manager/joint_states"
 SERVO_MONITOR_TOPIC = "/servo_controller"
 OBJECT_TRACKING_EXIT_SERVICE = "/object_tracking/exit"
+BUS_SERVO_STATE_SERVICE = "/ros_robot_controller/bus_servo/get_state"
 EXECUTE_ENV_NAME = "GRAPE_BASIC_PICK_ENABLE"
 EXECUTE_ENV_TOKEN = "I_UNDERSTAND_THIS_MOVES_THE_ROBOT"
 
@@ -90,6 +97,9 @@ class BasicFixedPickNode(Node):
         )
         self.object_tracking_exit = self.create_client(
             Trigger, OBJECT_TRACKING_EXIT_SERVICE
+        )
+        self.bus_servo_state = self.create_client(
+            GetBusServoState, BUS_SERVO_STATE_SERVICE
         )
         self.create_subscription(
             JointState, JOINT_STATES_TOPIC, self._joint_state_callback, 10
@@ -167,6 +177,61 @@ class BasicFixedPickNode(Node):
             self.arm_action.wait_for_server(timeout_sec=timeout_s)
             and self.gripper_action.wait_for_server(timeout_sec=timeout_s)
             and self.object_tracking_exit.wait_for_service(timeout_sec=timeout_s)
+            and self.bus_servo_state.wait_for_service(timeout_sec=timeout_s)
+        )
+
+    def wait_for_actual_feedback(self, timeout_s: float = 5.0) -> bool:
+        return self.bus_servo_state.wait_for_service(timeout_sec=timeout_s)
+
+    def verify_single_controller_graph(self) -> None:
+        publishers = self.get_publishers_info_by_topic(JOINT_STATES_TOPIC)
+        if len(publishers) != 1:
+            raise RuntimeError(
+                f"{JOINT_STATES_TOPIC} 发布者数量为{len(publishers)}，拒绝动作"
+            )
+        publisher = publishers[0]
+        if publisher.node_name != "controller_manager":
+            raise RuntimeError(
+                f"{JOINT_STATES_TOPIC} 发布者不是 controller_manager"
+            )
+
+    def read_actual_pulses(self, timeout_s: float = 2.0) -> Mapping[int, int]:
+        request = GetBusServoState.Request()
+        servo_ids = tuple(JOINT_TO_SERVO_ID.values())
+        for servo_id in servo_ids:
+            command = GetBusServoCmd()
+            command.id = servo_id
+            command.get_id = 1
+            command.get_position = 1
+            request.cmd.append(command)
+        future = self.bus_servo_state.call_async(request)
+        response = self._wait_future(future, timeout_s, "读取真实总线舵机位置")
+        if not response.success:
+            raise RuntimeError("真实总线舵机位置服务返回失败")
+        if len(response.state) != len(servo_ids):
+            raise RuntimeError(
+                "真实总线舵机位置数量异常："
+                f"期望{len(servo_ids)}，实际{len(response.state)}"
+            )
+        pulses = {}
+        for servo_id, state in zip(servo_ids, response.state):
+            if len(state.present_id) != 1 or int(state.present_id[0]) != servo_id:
+                raise RuntimeError(
+                    f"舵机ID{servo_id}真实状态返回ID不一致：{state.present_id}"
+                )
+            if len(state.position) != 1:
+                raise RuntimeError(
+                    f"舵机ID{servo_id}真实位置数量为{len(state.position)}"
+                )
+            pulses[servo_id] = int(state.position[0])
+        actual_pulses_to_joint_positions(pulses)
+        return pulses
+
+    def read_actual_joint_positions(
+        self, timeout_s: float = 2.0
+    ) -> Mapping[str, float]:
+        return actual_pulses_to_joint_positions(
+            self.read_actual_pulses(timeout_s)
         )
 
     def stop_object_tracking(self, timeout_s: float = 5.0) -> None:
@@ -297,8 +362,6 @@ class BasicFixedPickNode(Node):
         joint_names: Sequence[str],
         target: Sequence[float],
         tolerance_rad: float,
-        max_state_age_s: float,
-        not_before_monotonic: float,
         timeout_s: float,
         description: str,
     ) -> Mapping[str, float]:
@@ -306,14 +369,10 @@ class BasicFixedPickNode(Node):
         while time.monotonic() < deadline:
             if self.stopped():
                 raise RuntimeError(f"{description}验证期间被安全停止")
-            positions, age, received = self.joint_snapshot_with_receipt()
-            if (
-                received is not None
-                and received >= not_before_monotonic
-                and age <= max_state_age_s
-                and positions_within_tolerance(
-                    positions, joint_names, target, tolerance_rad
-                )
+            remaining = max(0.1, deadline - time.monotonic())
+            positions = self.read_actual_joint_positions(min(1.0, remaining))
+            if positions_within_tolerance(
+                positions, joint_names, target, tolerance_rad
             ):
                 return positions
             time.sleep(0.05)
@@ -324,21 +383,17 @@ class BasicFixedPickNode(Node):
         start_rad: float,
         target_rad: float,
         min_motion_rad: float,
-        max_state_age_s: float,
-        not_before_monotonic: float,
         timeout_s: float,
     ) -> Mapping[str, float]:
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if self.stopped():
                 raise RuntimeError("夹爪闭合验证期间被安全停止")
-            positions, age, received = self.joint_snapshot_with_receipt()
+            remaining = max(0.1, deadline - time.monotonic())
+            positions = self.read_actual_joint_positions(min(1.0, remaining))
             actual = positions.get(GRIPPER_JOINT_NAME)
             if (
-                received is not None
-                and received >= not_before_monotonic
-                and age <= max_state_age_s
-                and actual is not None
+                actual is not None
                 and gripper_moved_toward_target(
                     start_rad, actual, target_rad, min_motion_rad
                 )
@@ -362,24 +417,35 @@ def _require_confirmation(stage: PickStage) -> PickStage:
 def run_inspect(node: BasicFixedPickNode) -> int:
     if not node.wait_for_joint_state():
         raise RuntimeError("5秒内未收到 /controller_manager/joint_states")
+    node.verify_single_controller_graph()
     arm_ready = node.arm_action.wait_for_server(timeout_sec=2.0)
     gripper_ready = node.gripper_action.wait_for_server(timeout_sec=2.0)
+    actual_feedback_ready = node.wait_for_actual_feedback(timeout_s=2.0)
     positions, age = node.joint_snapshot()
     print("inspect为只读模式，不会发送action goal或停止现有节点。")
     print(f"arm_action_ready={arm_ready}")
     print(f"gripper_action_ready={gripper_ready}")
+    print(f"actual_feedback_ready={actual_feedback_ready}")
     print(f"joint_state_age_s={age:.3f}")
     for name in ("joint1", *ARM_JOINT_NAMES, GRIPPER_JOINT_NAME):
         print(f"{name}={positions.get(name, 'MISSING')}")
+    if actual_feedback_ready:
+        pulses = node.read_actual_pulses()
+        actual_positions = actual_pulses_to_joint_positions(pulses)
+        for name in ("joint1", *ARM_JOINT_NAMES, GRIPPER_JOINT_NAME):
+            servo_id = JOINT_TO_SERVO_ID[name]
+            print(
+                f"actual_{name}_pulse={pulses[servo_id]} "
+                f"actual_{name}_rad={actual_positions[name]:.9f}"
+            )
     return 0
 
 
 def run_capture(node: BasicFixedPickNode, item: str) -> int:
-    if not node.wait_for_joint_state():
-        raise RuntimeError("5秒内未收到 /controller_manager/joint_states")
-    positions, age = node.joint_snapshot()
-    if age > 0.5:
-        raise RuntimeError("关节状态已过期，拒绝记录")
+    if not node.wait_for_actual_feedback():
+        raise RuntimeError("5秒内真实总线舵机位置服务不可用")
+    node.verify_single_controller_graph()
+    positions = node.read_actual_joint_positions()
     required = ("joint1", *ARM_JOINT_NAMES, GRIPPER_JOINT_NAME)
     missing = [name for name in required if name not in positions]
     if missing:
@@ -406,14 +472,13 @@ def run_execute(node: BasicFixedPickNode, config_path: Path) -> int:
         )
     if not node.wait_for_interfaces():
         raise RuntimeError("动作服务器或 /object_tracking/exit 不可用")
-    if not node.wait_for_joint_state():
-        raise RuntimeError("5秒内未收到关节状态")
+    node.verify_single_controller_graph()
 
     node.clear_servo_conflict_for_preflight()
     node.stop_object_tracking()
     quiet_messages = node.observe_servo_quiet(config.servo_quiet_period_s)
-    positions, age = node.joint_snapshot()
-    preflight = evaluate_preflight(config, positions, age, quiet_messages)
+    positions = node.read_actual_joint_positions()
+    preflight = evaluate_preflight(config, positions, 0.0, quiet_messages)
     if not preflight.ok:
         raise RuntimeError(f"启动前安全检查失败：{preflight.failures}")
 
@@ -426,7 +491,7 @@ def run_execute(node: BasicFixedPickNode, config_path: Path) -> int:
     )
     print("这些参数只供人工查看检测画面，未接入动作坐标。")
     stage = _require_confirmation(PickStage.WAIT_PICK)
-    open_completed = node.send_trajectory(
+    node.send_trajectory(
         node.gripper_action,
         (GRIPPER_JOINT_NAME,),
         (config.gripper_open_rad,),
@@ -438,12 +503,10 @@ def run_execute(node: BasicFixedPickNode, config_path: Path) -> int:
         (GRIPPER_JOINT_NAME,),
         (config.gripper_open_rad,),
         config.gripper_tolerance_rad,
-        config.joint_state_max_age_s,
-        open_completed,
         config.timeout_margin_s,
         "夹爪打开",
     )
-    grasp_completed = node.send_trajectory(
+    node.send_trajectory(
         node.arm_action,
         ARM_JOINT_NAMES,
         config.grasp,
@@ -455,16 +518,14 @@ def run_execute(node: BasicFixedPickNode, config_path: Path) -> int:
         ARM_JOINT_NAMES,
         config.grasp,
         config.arm_tolerance_rad,
-        config.joint_state_max_age_s,
-        grasp_completed,
         config.timeout_margin_s,
         "夹取位",
     )
 
     stage = _require_confirmation(stage)
-    before_close, _age = node.joint_snapshot()
+    before_close = node.read_actual_joint_positions()
     start_gripper = before_close[GRIPPER_JOINT_NAME]
-    close_completed = node.send_trajectory(
+    node.send_trajectory(
         node.gripper_action,
         (GRIPPER_JOINT_NAME,),
         (config.gripper_close_rad,),
@@ -476,13 +537,11 @@ def run_execute(node: BasicFixedPickNode, config_path: Path) -> int:
         start_gripper,
         config.gripper_close_rad,
         config.min_gripper_motion_rad,
-        config.joint_state_max_age_s,
-        close_completed,
         config.timeout_margin_s,
     )
 
     stage = _require_confirmation(stage)
-    lift_completed = node.send_trajectory(
+    node.send_trajectory(
         node.arm_action,
         ARM_JOINT_NAMES,
         config.lift,
@@ -494,8 +553,6 @@ def run_execute(node: BasicFixedPickNode, config_path: Path) -> int:
         ARM_JOINT_NAMES,
         config.lift,
         config.arm_tolerance_rad,
-        config.joint_state_max_age_s,
-        lift_completed,
         config.timeout_margin_s,
         "抬升位",
     )

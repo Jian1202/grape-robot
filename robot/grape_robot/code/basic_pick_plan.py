@@ -12,6 +12,23 @@ import math
 ARM_JOINT_NAMES = ("joint2", "joint3", "joint4", "joint5")
 GRIPPER_JOINT_NAME = "r_joint"
 REFERENCE_JOINT_NAME = "joint1"
+RADIANS_PER_PULSE = 240.0 / 360.0 * (math.pi * 2.0) / 1000.0
+JOINT_TO_SERVO_ID = {
+    REFERENCE_JOINT_NAME: 1,
+    "joint2": 2,
+    "joint3": 3,
+    "joint4": 4,
+    "joint5": 5,
+    GRIPPER_JOINT_NAME: 10,
+}
+JOINT_INITIAL_PULSE = {
+    REFERENCE_JOINT_NAME: 500,
+    "joint2": 500,
+    "joint3": 500,
+    "joint4": 500,
+    "joint5": 500,
+    GRIPPER_JOINT_NAME: 700,
+}
 
 
 class PickStage(str, Enum):
@@ -273,6 +290,31 @@ def positions_within_tolerance(
         )
     except (KeyError, TypeError, ValueError):
         return False
+
+
+def actual_pulses_to_joint_positions(
+    pulses_by_servo_id: Mapping[int, int],
+) -> Mapping[str, float]:
+    """按机器人控制器配置把真实总线pulse转换为关节rad。"""
+
+    positions = {}
+    for joint_name in (
+        REFERENCE_JOINT_NAME,
+        *ARM_JOINT_NAMES,
+        GRIPPER_JOINT_NAME,
+    ):
+        servo_id = JOINT_TO_SERVO_ID[joint_name]
+        try:
+            pulse = pulses_by_servo_id[servo_id]
+        except (KeyError, TypeError) as error:
+            raise ValueError(f"缺少舵机ID{servo_id}真实位置") from error
+        pulse_value = _finite_number(f"servo[{servo_id}].pulse", pulse)
+        if pulse_value < 0.0 or pulse_value > 1000.0:
+            raise ValueError(f"舵机ID{servo_id}真实位置超出[0, 1000]")
+        positions[joint_name] = (
+            JOINT_INITIAL_PULSE[joint_name] - pulse_value
+        ) * RADIANS_PER_PULSE
+    return positions
 
 
 def evaluate_preflight(

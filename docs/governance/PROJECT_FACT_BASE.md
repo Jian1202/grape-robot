@@ -56,9 +56,13 @@
 | F-209 | 运动学服务网络等待、调用超时和取消行为尚未形成合同 | `UNKNOWN` | 当前客户端已禁用，恢复前必须取证并实现 |
 | F-210 | `/controller_manager`提供机械臂、夹爪和joint1三个`FollowJointTrajectory` action；机械臂action控制`joint2`–`joint5`，夹爪action控制`r_joint` | `VERIFIED_ROBOT` | [2026-07-19固定工位基本夹取只读快照](../evidence/basic-fixed-pick-20260719/README.md) |
 | F-211 | 厂商action服务端把rad转换为pulse后直接调用servo manager，支持执行期间取消，但结束时不检查实际到位误差 | `VERIFIED_ROBOT` | 同上，厂商源码SHA-256及摘录 |
-| F-212 | 当前新增的固定工位夹取执行器不创建publisher，不使用旧运动学/舵机调用；默认inspect只读，execute需要三重许可并在每步后读取动作结束后新到达的joint_states复核 | `VERIFIED_REPO`（动作路径）/ `VERIFIED_ROBOT`（只读inspect） | `basic_fixed_pick.py`、纯算法和合同测试、[2026-07-19只读部署记录](../evidence/basic-fixed-pick-20260719/README.md) |
+| F-212 | 当前新增的固定工位夹取执行器不创建publisher，不使用旧运动学/舵机调用；默认inspect只读，execute需要三重许可。2026-07-19续查后，仓库实现已改为在每步后通过总线状态服务读取真实pulse并复核，不再把joint_states当作实际到位证据 | `VERIFIED_REPO`（修正后的动作路径）/ `VERIFIED_ROBOT`（旧版只读inspect） | `basic_fixed_pick.py`、纯算法和合同测试、[2026-07-19只读部署及续查记录](../evidence/basic-fixed-pick-20260719/README.md) |
 | F-213 | 2026-07-19快照时`/servo_controller`有7个发布端点，6秒观察窗口没有收到消息；发布者之间不存在可证明的系统级互斥 | `VERIFIED_ROBOT`（端点与本次窗口）/ `UNKNOWN`（长期互斥） | [2026-07-19只读快照](../evidence/basic-fixed-pick-20260719/README.md) |
 | F-214 | 固定工位的pregrasp/grasp/lift关节姿态、`r_joint`开闭方向和位置、葡萄接触后的安全夹持量尚未采集和动作验证 | `UNKNOWN` | 配置模板保持null，禁止从旧pulse值推算 |
+| F-215 | 厂商`ServoManager.get_position()`返回缓存的最近命令目标，`/controller_manager/joint_states`不是舵机总线实测位置，不能证明实际到位 | `VERIFIED_ROBOT` | 机器人端厂商源码续查、同一时刻joint_states与总线状态服务结果对比，见2026-07-19续查记录 |
+| F-216 | `/ros_robot_controller/bus_servo/get_state`可用`GetBusServoState`只读查询ID1–5、10的实际position pulse；本次两次读取间仅有ID1、ID10各1 pulse波动 | `VERIFIED_ROBOT` | `ros2 service type/interface show/call`与机器人端消息导入，见2026-07-19续查记录 |
+| F-217 | 现场曾同时发现两套同名ROS控制图；另一Ubuntu设备MAC为`f8:3d:c6:1f:8f:55`，当前机器人MAC为`f8:3d:c6:57:25:91`。现场人员已把前者加入热点黑名单；动作前仍须重新确认控制图唯一 | `VERIFIED_ROBOT`（当时发现与MAC）/ `DOCUMENTED_ROBOT`（热点黑名单操作） | 2026-07-19现场续查；网络隔离不是程序内永久互斥 |
+| F-218 | 现场小步试验确认ID10从499递增到504、509时夹爪继续小幅闭合，未观察到顶死或异常声音；真实葡萄安全夹持位置仍未知 | `VERIFIED_ROBOT`（方向与本次小步）/ `UNKNOWN`（负载夹持量） | 2026-07-19 NoMachine现场观察与人工确认 |
 
 ## 5. 当前禁止升级为事实的内容
 

@@ -68,12 +68,17 @@ class BasicFixedPickContractTest(unittest.TestCase):
             self.assigned_string("OBJECT_TRACKING_EXIT_SERVICE"),
             "/object_tracking/exit",
         )
+        self.assertEqual(
+            self.assigned_string("BUS_SERVO_STATE_SERVICE"),
+            "/ros_robot_controller/bus_servo/get_state",
+        )
 
         self.assertEqual(len(self.calls_named(self.tree, "ActionClient")), 2)
         self.assertEqual(len(self.calls_named(self.tree, "create_subscription")), 2)
         create_clients = self.calls_named(self.tree, "create_client")
-        self.assertEqual(len(create_clients), 1)
+        self.assertEqual(len(create_clients), 2)
         self.assertEqual(create_clients[0].args[1].id, "OBJECT_TRACKING_EXIT_SERVICE")
+        self.assertEqual(create_clients[1].args[1].id, "BUS_SERVO_STATE_SERVICE")
 
     def test_node_constructs_no_publishers_or_legacy_motion_interfaces(self):
         self.assertEqual(self.calls_named(self.tree, "create_publisher"), [])
@@ -110,14 +115,22 @@ class BasicFixedPickContractTest(unittest.TestCase):
         self.assertIn("add_done_callback", wait_source)
         self.assertIn("_cancel_goal_when_available", wait_source)
 
-    def test_actual_position_requires_post_action_joint_state(self):
+    def test_actual_position_uses_post_action_bus_servo_feedback(self):
         position_source = ast.unparse(self.function_node("wait_for_positions"))
         gripper_source = ast.unparse(
             self.function_node("wait_for_gripper_motion")
         )
         for source in (position_source, gripper_source):
-            self.assertIn("not_before_monotonic", source)
-            self.assertIn("received >= not_before_monotonic", source)
+            self.assertIn("read_actual_joint_positions", source)
+            self.assertNotIn("joint_snapshot", source)
+
+        capture_source = ast.unparse(self.function_node("run_capture"))
+        self.assertIn("read_actual_joint_positions", capture_source)
+        self.assertNotIn("joint_snapshot", capture_source)
+
+        read_source = ast.unparse(self.function_node("read_actual_pulses"))
+        self.assertIn("command.get_id = 1", read_source)
+        self.assertIn("state.present_id", read_source)
 
     def test_execute_has_three_independent_permissions(self):
         execute_source = ast.unparse(self.function_node("run_execute"))
@@ -126,6 +139,11 @@ class BasicFixedPickContractTest(unittest.TestCase):
         self.assertIn("EXECUTE_ENV_TOKEN", execute_source)
         self.assertIn("evaluate_preflight", execute_source)
         self.assertIn("servo_quiet_period_s", execute_source)
+        self.assertIn("verify_single_controller_graph", execute_source)
+        self.assertIn("read_actual_joint_positions", execute_source)
+
+        inspect_source = ast.unparse(self.function_node("run_inspect"))
+        self.assertIn("verify_single_controller_graph", inspect_source)
 
         parse_source = ast.unparse(self.function_node("parse_args"))
         self.assertIn("default='inspect'", parse_source)

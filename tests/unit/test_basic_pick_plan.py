@@ -10,6 +10,7 @@ from robot.grape_robot.code.basic_pick_plan import (
     BasicPickConfig,
     PickStage,
     accept_confirmation,
+    actual_pulses_to_joint_positions,
     config_from_mapping,
     evaluate_preflight,
     gripper_moved_toward_target,
@@ -183,6 +184,28 @@ class PreflightTest(unittest.TestCase):
 
 
 class PureHelpersTest(unittest.TestCase):
+    def test_actual_pulses_are_converted_with_robot_controller_config(self):
+        positions = actual_pulses_to_joint_positions(
+            {1: 500, 2: 765, 3: 15, 4: 220, 5: 500, 10: 500}
+        )
+        self.assertAlmostEqual(positions["joint1"], 0.0)
+        self.assertAlmostEqual(positions["joint2"], -1.110029404)
+        self.assertAlmostEqual(positions["joint3"], 2.031563249)
+        self.assertAlmostEqual(positions["joint4"], 1.172861257)
+        self.assertAlmostEqual(positions["joint5"], 0.0)
+        self.assertAlmostEqual(positions["r_joint"], 0.837758041)
+
+    def test_actual_pulses_reject_missing_or_invalid_values(self):
+        valid = {1: 500, 2: 765, 3: 15, 4: 220, 5: 500, 10: 500}
+        for servo_id, value in ((3, None), (4, True), (5, 1001)):
+            pulses = dict(valid)
+            if value is None:
+                del pulses[servo_id]
+            else:
+                pulses[servo_id] = value
+            with self.subTest(servo_id=servo_id), self.assertRaises(ValueError):
+                actual_pulses_to_joint_positions(pulses)
+
     def test_positions_tolerance(self):
         actual = dict(zip(ARM_JOINT_NAMES, (0.0, 0.1, 0.2, 0.3)))
         self.assertTrue(

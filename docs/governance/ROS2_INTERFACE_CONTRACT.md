@@ -47,7 +47,7 @@
 
 | 名称 | 类型 | 用途 | 当前证据 | 失败语义 |
 | --- | --- | --- | --- | --- |
-| `/controller_manager/joint_states` | `sensor_msgs/msg/JointState` | 启动前姿态与动作后到位复核，位置单位为rad | `VERIFIED_ROBOT` | 缺失、过期、关节不全或超容差时拒绝/停止后续动作 |
+| `/controller_manager/joint_states` | `sensor_msgs/msg/JointState` | 控制图存在性与缓存命令位置诊断，位置单位为rad；不是实际到位证据 | `VERIFIED_ROBOT` | 发布者不唯一或不是`/controller_manager`时拒绝动作 |
 | `/servo_controller` | `servo_controller_msgs/msg/ServosPosition` | 竞争动作通道监视；只订阅、不发布 | `VERIFIED_ROBOT` | 静默期或执行中收到任一消息即取消当前goal，不自动恢复 |
 
 ## 4. 发布输出
@@ -73,10 +73,13 @@
 | `/arm_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `joint2`–`joint5`，单位rad | `VERIFIED_ROBOT`；2026-07-19 `ros2 action list -t`、`ros2 node info /controller_manager`及控制器配置 |
 | `/gripper_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `r_joint`，单位rad | `VERIFIED_ROBOT`；同上 |
 | `/object_tracking/exit` | `std_srvs/srv/Trigger` | execute前停止现有物体跟踪节点，随后检查动作话题静默 | `VERIFIED_ROBOT`；2026-07-19 `ros2 service type` |
+| `/ros_robot_controller/bus_servo/get_state` | `ros_robot_controller_msgs/srv/GetBusServoState` | 只读查询ID1–5、10的实际总线position pulse，用于启动前和每个action后的到位复核 | `VERIFIED_ROBOT`；2026-07-19 `ros2 service type/interface show/call`及厂商源码 |
 
 厂商 `JointTrajectoryActionController` 会把rad目标转换为pulse并直接调用servo manager；
-它在持续时间结束后报告成功，但源码未核验实际关节误差。因此 action 成功不能单独
-证明到位，客户端必须再读取新鲜的 `joint_states` 并执行容差检查。完整证据见
+它在持续时间结束后报告成功，但源码未核验实际关节误差。续查还确认
+`ServoManager.get_position()`只返回缓存的最近命令目标，因此`joint_states`也不能证明
+到位。客户端必须通过`/ros_robot_controller/bus_servo/get_state`读取实际pulse，按当前
+控制器的pulse/rad映射转换后执行容差检查。完整证据见
 [2026-07-19固定工位基本夹取只读快照](../evidence/basic-fixed-pick-20260719/README.md)。
 
 ## 6. 本节点提供的服务
@@ -110,6 +113,8 @@ ros2 service list -t | grep track_and_grab
 | `grape_localization.localize_detection` | RGB-D投影和稳健三维定位 | `VERIFIED_REPO` | 仓库内纯算法定义与离线单元测试 |
 | `rclpy.action.ActionClient` | 固定工位机械臂/夹爪action客户端 | `VERIFIED_ROBOT` | 机器人端导入成功；action名称和服务端由2026-07-19只读快照确认 |
 | `control_msgs.action.FollowJointTrajectory` | 关节轨迹goal/result | `VERIFIED_ROBOT` | 机器人端`ros2 interface show`及厂商服务端源码 |
+| `ros_robot_controller_msgs.srv.GetBusServoState` | 读取总线舵机实际状态 | `VERIFIED_ROBOT` | 机器人端`ros2 interface show`、只读service call和服务端源码 |
+| `ros_robot_controller_msgs.msg.GetBusServoCmd` | 指定舵机ID并置`get_position=1` | `VERIFIED_ROBOT` | 机器人端接口定义与成功只读调用 |
 | `yaml.safe_load` | 严格读取现场夹取配置 | `VERIFIED_ROBOT` | 机器人端导入成功；配置值仍须现场采集 |
 
 本仓库当前没有这些机器人厂商 Python 包的完整定义。因此 Codex 可以分析调用点，但不能仅凭本地仓库证明底层行为。
