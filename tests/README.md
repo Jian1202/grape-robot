@@ -13,7 +13,18 @@ tests/
 └── hardware/      实车 Gate 检查脚本和人工记录模板
 ```
 
-目前这些子目录尚未全部建立，不代表已有测试覆盖。
+当前已经建立：
+
+- `unit/test_grape_localization.py`：RGB-D投影、不同分辨率、外参、稳健深度和失败关闭；
+- `unit/test_target_stability.py`：连续多帧稳定、立即失效、时间戳和位置跳变；
+- `unit/test_basic_pick_plan.py`：固定工位夹取配置、启动前检查、夹爪行程和人工确认状态机；
+- `contract/test_localization_only_contract.py`：执行器通道禁用、相机接口接入和启动参数安全合同。
+- `contract/test_basic_fixed_pick_contract.py`：独立夹取执行器接口白名单、三重许可、取消竞态和动作后状态复核合同；
+- `replay/replay_rgbd_sample.py`：对固定RGB-D样本重复运行纯定位算法，校验距离区间、投影点和确定性；不导入`rclpy`，不接触硬件。
+- `replay/replay_target_stability_sequence.py`：固定有目标/空帧序列的稳定、失效和代次隔离回放；
+- `replay/replay_yolo_no_target_sample.py`：使用指定YOLO模型对无目标RGB样本重复推理，校验虚假检测和模型哈希；不导入`rclpy`，不接触硬件。
+
+其余子目录尚未全部建立，不代表已有对应测试覆盖。
 
 ## 优先补充的测试
 

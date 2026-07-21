@@ -47,6 +47,9 @@ yolo/data/labels/
 *.db3
 *.mcap
 
+# Local RGB-D validation captures (may contain field RGB images)
+docs/evidence/rgbd-localization-validation-20260714/samples/
+
 # Windows duplicate copies
 * (1).py
 * (2).py

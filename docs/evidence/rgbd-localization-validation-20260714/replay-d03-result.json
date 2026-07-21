@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "sample": "docs/evidence/rgbd-localization-validation-20260714/samples/d03-047m-20260714.npz",
+  "sample_sha256": "03be0fc45049ed71860e769aed924000c63c303175859e5c2f751f16c1b3da62",
+  "sample_schema_version": 1,
+  "model_sha256_at_capture": "d3c3173f1c4001461baeb2829bd543271aa3dcf5c22c9dd4a5e377163348beee",
+  "frame_count": 3,
+  "repeat_count": 3,
+  "deterministic": true,
+  "manual_distance_m": [0.45, 0.49],
+  "mean_depth_m": 0.45561720114524445,
+  "depth_range_m": 0.001022023590816823,
+  "frames": [
+    {
+      "index": 0,
+      "success": true,
+      "failure": "NONE",
+      "depth_m": 0.4553043838731875,
+      "inside_manual_interval": true,
+      "inside_detection_box": true,
+      "depth_matches_capture": true,
+      "valid_ratio": 0.9491867818794201,
+      "valid_points": 2970,
+      "projected_pixel": [377.756407236633, 286.95508331764097]
+    },
+    {
+      "index": 1,
+      "success": true,
+      "failure": "NONE",
+      "depth_m": 0.4552625979858646,
+      "inside_manual_interval": true,
+      "inside_detection_box": true,
+      "depth_matches_capture": true,
+      "valid_ratio": 0.9297025237994003,
+      "valid_points": 2903,
+      "projected_pixel": [378.4866102563894, 285.9996286679455]
+    },
+    {
+      "index": 2,
+      "success": true,
+      "failure": "NONE",
+      "depth_m": 0.4562846215766814,
+      "inside_manual_interval": true,
+      "inside_detection_box": true,
+      "depth_matches_capture": true,
+      "valid_ratio": 0.9315824465916525,
+      "valid_points": 2895,
+      "projected_pixel": [378.4476308079291, 286.9699118352374]
+    }
+  ]
+}

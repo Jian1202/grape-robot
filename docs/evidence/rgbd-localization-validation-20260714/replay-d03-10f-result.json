@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "sample": "docs/evidence/rgbd-localization-validation-20260714/samples/d03-047m-10f-20260714.npz",
+  "sample_sha256": "b484a277bafb9a4c82a511d74db2b414164dec1a8c16e92a90f68b5555ad60a7",
+  "sample_schema_version": 1,
+  "model_sha256_at_capture": "d3c3173f1c4001461baeb2829bd543271aa3dcf5c22c9dd4a5e377163348beee",
+  "frame_count": 10,
+  "repeat_count": 3,
+  "deterministic": true,
+  "manual_distance_m": [0.45, 0.49],
+  "mean_depth_m": 0.45673551935181217,
+  "depth_range_m": 0.00392519638011779,
+  "frames": [
+    {"index": 0, "success": true, "failure": "NONE", "depth_m": 0.4572910869112483, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9342905756632846, "valid_points": 2896, "projected_pixel": [378.6036877434184, 286.004738487919]},
+    {"index": 1, "success": true, "failure": "NONE", "depth_m": 0.45629199871294773, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9136049160877694, "valid_points": 2860, "projected_pixel": [377.7236932770321, 286.87650004474983]},
+    {"index": 2, "success": true, "failure": "NONE", "depth_m": 0.45622488135329897, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9306009127511742, "valid_points": 2899, "projected_pixel": [377.8669913058062, 286.8688172854349]},
+    {"index": 3, "success": true, "failure": "NONE", "depth_m": 0.45522054286443975, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9198939264128132, "valid_points": 2869, "projected_pixel": [378.26665576051147, 287.8155514837423]},
+    {"index": 4, "success": true, "failure": "NONE", "depth_m": 0.4561410291633517, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9217250583502021, "valid_points": 2901, "projected_pixel": [378.24007879113555, 286.9313343300268]},
+    {"index": 5, "success": true, "failure": "NONE", "depth_m": 0.45619803332908593, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9513608529282738, "valid_points": 2966, "projected_pixel": [378.3971044145658, 286.9618423461899]},
+    {"index": 6, "success": true, "failure": "NONE", "depth_m": 0.45914573924455754, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9367126265667634, "valid_points": 2900, "projected_pixel": [378.41879874186435, 286.93309802347255]},
+    {"index": 7, "success": true, "failure": "NONE", "depth_m": 0.45627582513877435, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9254720703860388, "valid_points": 2899, "projected_pixel": [377.66128396317237, 286.9023902292686]},
+    {"index": 8, "success": true, "failure": "NONE", "depth_m": 0.4572889289611392, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9250488149219779, "valid_points": 2865, "projected_pixel": [378.5828935277881, 286.8918105839889]},
+    {"index": 9, "success": true, "failure": "NONE", "depth_m": 0.45727712783927776, "inside_manual_interval": true, "inside_detection_box": true, "depth_matches_capture": true, "valid_ratio": 0.9415473357226333, "valid_points": 2936, "projected_pixel": [377.71700496982123, 286.88308699884783]}
+  ]
+}

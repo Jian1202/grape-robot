@@ -1,6 +1,6 @@
 # ROS2 与外部接口合同
 
-最后整理：2026-07-13
+最后整理：2026-07-19
 
 本文件集中记录当前代码依赖的 ROS2 接口和外部 Python 符号。它的目的不是证明这些接口在所有机器人版本中都可用，而是防止开发者或 Codex 根据习惯编造名称、类型和字段。
 
@@ -22,7 +22,13 @@
 | 节点名 | `track_and_grab` | `VERIFIED_REPO` | 当前 `main()` |
 | launch 中 package | `example` | `VERIFIED_REPO` | `robot/grape_robot/launch/track_and_grab.launch.py` |
 | launch 中 executable | `track_and_grab` | `VERIFIED_REPO` | 同上 |
-| 机器人实际安装包与仓库代码的同步关系 | 尚未形成自动校验 | `UNKNOWN` | 需在机器人工作空间核对 |
+| 当前安全模式 | 定位-only；`enable_arm=true` 拒绝启动 | `VERIFIED_REPO` | `grape_localization.enforce_localization_only` |
+| 机器人实际安装包与当前未提交代码的同步关系 | 2026-07-14快照时一致；本轮修改尚未部署 | `UNKNOWN` | [实机只读快照](../evidence/robot-snapshot-20260714/README.md) |
+
+固定工位基本夹取使用独立的 `BasicFixedPickNode`，不解除上述检测-only节点的
+动作硬禁用。其默认 `inspect` 模式只读；`execute` 必须经过配置许可、环境令牌、
+启动前状态检查和三次人工确认。该执行器已在2026-07-19部署并通过只读inspect，
+但尚未发送过实车 action goal；只读接口为 `VERIFIED_ROBOT`，动作行为仍未验证。
 
 ## 3. 订阅输入
 
@@ -31,34 +37,57 @@
 | `/gemini_camera/rgb/image_raw` | `sensor_msgs/msg/Image` | RGB 图像 | `VERIFIED_REPO`；另有实机文档记录 | 核对类型、分辨率、encoding、帧率 |
 | `/gemini_camera/depth/image_raw` | `sensor_msgs/msg/Image` | 深度图 | `VERIFIED_REPO`；另有实机文档记录 | 核对类型、encoding、单位、无效值规则 |
 | `/gemini_camera/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | 深度相机内参 | `VERIFIED_REPO` | 核对内参与深度图分辨率一致 |
+| `/gemini_camera/rgb/camera_info` | `sensor_msgs/msg/CameraInfo` | RGB相机内参 | `VERIFIED_ROBOT` | 当前代码新增订阅；核对固定样本与本次快照参数一致 |
+| `/gemini_camera/depth_to_color` | `orbbec_camera_msgs/msg/Extrinsics` | 深度到RGB外参，translation单位为米 | `VERIFIED_ROBOT` | 驱动`obExtrinsicsToMsg()`定义；当前代码按Reliable + Transient Local订阅 |
 
-当前通过 `message_filters.ApproximateTimeSynchronizer` 同步三路输入，代码注释与实参的时间容差存在文字差异，后续修改时应以实际参数和测试结果为准。
+当前通过 `message_filters.ApproximateTimeSynchronizer` 只同步 RGB 与深度图；
+两路 `CameraInfo` 和外参由独立回调缓存，处理图像对时读取缓存快照。
+
+固定工位基本夹取执行器新增以下只读订阅：
+
+| 名称 | 类型 | 用途 | 当前证据 | 失败语义 |
+| --- | --- | --- | --- | --- |
+| `/controller_manager/joint_states` | `sensor_msgs/msg/JointState` | 控制图存在性与缓存命令位置诊断，位置单位为rad；不是实际到位证据 | `VERIFIED_ROBOT` | 发布者不唯一或不是`/controller_manager`时拒绝动作 |
+| `/servo_controller` | `servo_controller_msgs/msg/ServosPosition` | 竞争动作通道监视；只订阅、不发布 | `VERIFIED_ROBOT` | 静默期或执行中收到任一消息即取消当前goal，不自动恢复 |
 
 ## 4. 发布输出
 
-| 名称 | 类型 | 用途 | 状态 | 风险说明 |
-| --- | --- | --- | --- | --- |
-| `/servo_controller` | `servo_controller_msgs/msg/ServosPosition` | 机械臂和夹爪舵机控制 | `VERIFIED_REPO` + `DOCUMENTED_ROBOT` | 真实硬件动作；进入实车前必须重新核对订阅者、单位和限幅 |
+当前检测-only节点和固定工位基本夹取执行器均不创建任何 publisher。
 
-代码通过外部函数 `set_servo_position(...)` 向该 publisher 发送命令。不得因为函数名直观就猜测其参数结构，应检查机器人已安装包中的真实定义。
+基本夹取执行器通过 ROS2 action client 接触控制器，不向 `/servo_controller`
+发布消息。action goal 会导致真实机械臂或夹爪动作，因此只允许在 `execute` 模式及
+实车关卡通过后使用。
+
+旧抓取方法仍保留 `set_servo_position(...)` 调用源码，但构造器不创建 `/servo_controller` publisher，且 `enable_arm=true` 会在初始化时被拒绝。恢复任何动作能力前必须另行评审，不得删除安全保护后直接复用旧方法。
 
 ## 5. 服务客户端
 
-| 服务名 | 类型 | 当前用途 | 状态 | 必须补充的证据 |
-| --- | --- | --- | --- | --- |
-| `/kinematics/get_current_pose` | `kinematics_msgs/srv/GetRobotPose` | 获取末端当前位姿 | `VERIFIED_REPO` | `ros2 service type`、`ros2 interface show`、超时与失败行为 |
-| `/kinematics/set_pose_target` | `kinematics_msgs/srv/SetRobotPose` | 将目标位姿转换为舵机 pulse | `VERIFIED_REPO` | 请求/响应字段、单位、IK 无解表现、pulse 数量 |
-| `/controller_manager/init_finish` | `std_srvs/srv/Trigger` | 等待控制器初始化 | `VERIFIED_REPO` | 服务提供者、无响应时行为 |
-| `/gemini_camera/set_ldp_enable` | `std_srvs/srv/SetBool` | 当前代码初始化时关闭 LDP | `VERIFIED_REPO` | LDP 准确含义及关闭影响 |
+当前检测-only节点不创建运动学、控制器或相机状态变更客户端，也不调用服务。
 
-当前 `send_request()` 循环没有统一超时。任何重构都应先明确服务合同，再增加可测试的超时和取消处理。
+旧抓取方法中仍保留 `/kinematics/get_current_pose` 与 `/kinematics/set_pose_target` 的调用源码。实机快照已经确认类型、字段和IK无解行为；恢复客户端前仍必须实现超时、取消、`GetRobotPose.solution`检查和空`pulse`失败退出。
+
+固定工位基本夹取执行器只登记以下客户端：
+
+| 名称 | 类型 | 控制范围/用途 | 状态与来源 |
+| --- | --- | --- | --- |
+| `/arm_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `joint2`–`joint5`，单位rad | `VERIFIED_ROBOT`；2026-07-19 `ros2 action list -t`、`ros2 node info /controller_manager`及控制器配置 |
+| `/gripper_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `r_joint`，单位rad | `VERIFIED_ROBOT`；同上 |
+| `/object_tracking/exit` | `std_srvs/srv/Trigger` | execute前停止现有物体跟踪节点，随后检查动作话题静默 | `VERIFIED_ROBOT`；2026-07-19 `ros2 service type` |
+| `/ros_robot_controller/bus_servo/get_state` | `ros_robot_controller_msgs/srv/GetBusServoState` | 只读查询ID1–5、10的实际总线position pulse，用于启动前和每个action后的到位复核 | `VERIFIED_ROBOT`；2026-07-19 `ros2 service type/interface show/call`及厂商源码 |
+
+厂商 `JointTrajectoryActionController` 会把rad目标转换为pulse并直接调用servo manager；
+它在持续时间结束后报告成功，但源码未核验实际关节误差。续查还确认
+`ServoManager.get_position()`只返回缓存的最近命令目标，因此`joint_states`也不能证明
+到位。客户端必须通过`/ros_robot_controller/bus_servo/get_state`读取实际pulse，按当前
+控制器的pulse/rad映射转换后执行容差检查。完整证据见
+[2026-07-19固定工位基本夹取只读快照](../evidence/basic-fixed-pick-20260719/README.md)。
 
 ## 6. 本节点提供的服务
 
 | 相对名称 | 类型 | 用途 | 状态 |
 | --- | --- | --- | --- |
 | `~/start` | `std_srvs/srv/Trigger` | 开始检测/跟踪 | `VERIFIED_REPO` |
-| `~/stop` | `std_srvs/srv/Trigger` | 停止并尝试恢复初始姿态 | `VERIFIED_REPO` |
+| `~/stop` | `std_srvs/srv/Trigger` | 停止检测并清除节点内状态；当前不发布复位动作 | `VERIFIED_REPO` |
 | `~/set_color` | `interfaces/srv/SetString` | 切换颜色跟踪目标 | `VERIFIED_REPO` |
 | `~/init_finish` | `std_srvs/srv/Trigger` | 返回节点初始化完成 | `VERIFIED_REPO` |
 
@@ -75,12 +104,18 @@ ros2 service list -t | grep track_and_grab
 
 | import / 符号 | 当前用途 | 状态 | 验证方式 |
 | --- | --- | --- | --- |
-| `sdk.pid.PID` | 视觉跟踪 PID | `VERIFIED_REPO` | 在机器人环境定位 `sdk` 包源码 |
-| `sdk.common` | 颜色、矩阵与位姿转换 | `VERIFIED_REPO` | 检查实际函数定义和坐标约定 |
+| `sdk.pid.PID` | 视觉跟踪 PID | `VERIFIED_ROBOT` | 定义与路径见2026-07-14快照 |
+| `sdk.common` | 颜色、矩阵与位姿转换 | `VERIFIED_ROBOT` | 函数定义已取证；物理坐标轴仍未知 |
 | `sdk.fps.FPS` | 帧率统计 | `VERIFIED_REPO` | 检查实际包版本 |
-| `kinematics.kinematics_control.set_pose_target` | 构造运动学请求 | `VERIFIED_REPO` | 打开机器人安装源码，确认参数与单位 |
-| `servo_controller.bus_servo_control.set_servo_position` | 发布舵机目标 | `VERIFIED_REPO` | 打开机器人安装源码，确认类型、单位和边界 |
-| `ultralytics.YOLO` | YOLO 模型加载与推理 | `VERIFIED_REPO` | 记录机器人实际安装版本 |
+| `kinematics.kinematics_control.set_pose_target` | 旧动作方法构造运动学请求 | `VERIFIED_ROBOT` | 实机签名、单位注释和源码哈希已取证 |
+| `servo_controller.bus_servo_control.set_servo_position` | 旧动作方法发布舵机目标 | `VERIFIED_ROBOT` | 实机确认固定使用`pulse`并直接发布 |
+| `ultralytics.YOLO` | YOLO 模型加载与推理 | `VERIFIED_ROBOT` | 实机版本8.3.182；本轮未重新运行模型 |
+| `grape_localization.localize_detection` | RGB-D投影和稳健三维定位 | `VERIFIED_REPO` | 仓库内纯算法定义与离线单元测试 |
+| `rclpy.action.ActionClient` | 固定工位机械臂/夹爪action客户端 | `VERIFIED_ROBOT` | 机器人端导入成功；action名称和服务端由2026-07-19只读快照确认 |
+| `control_msgs.action.FollowJointTrajectory` | 关节轨迹goal/result | `VERIFIED_ROBOT` | 机器人端`ros2 interface show`及厂商服务端源码 |
+| `ros_robot_controller_msgs.srv.GetBusServoState` | 读取总线舵机实际状态 | `VERIFIED_ROBOT` | 机器人端`ros2 interface show`、只读service call和服务端源码 |
+| `ros_robot_controller_msgs.msg.GetBusServoCmd` | 指定舵机ID并置`get_position=1` | `VERIFIED_ROBOT` | 机器人端接口定义与成功只读调用 |
+| `yaml.safe_load` | 严格读取现场夹取配置 | `VERIFIED_ROBOT` | 机器人端导入成功；配置值仍须现场采集 |
 
 本仓库当前没有这些机器人厂商 Python 包的完整定义。因此 Codex 可以分析调用点，但不能仅凭本地仓库证明底层行为。
 
@@ -93,9 +128,19 @@ ros2 service list -t | grep track_and_grab
 | `target_class` | `ripe_grape` | `VERIFIED_REPO` | 必须存在于模型类别中 |
 | `confidence` | `0.4` | `VERIFIED_REPO` | 需要按现场验证调整 |
 | `imgsz` | `320` | `VERIFIED_REPO` | 视觉测试文档另有 416 建议 |
-| `enable_arm` | `false` | `VERIFIED_REPO` | 默认安全开关，未分离跟踪/夹取/脱离权限 |
+| `enable_arm` | `false` | `VERIFIED_REPO` | 当前为硬禁用；传入`true`时节点拒绝启动 |
+| `depth_scale_m_per_unit` | `0.001` | `VERIFIED_REPO` | 实机Orbbec驱动源码确认发布深度值单位为毫米；非正值仍失败关闭 |
+| `min_valid_points` | `20` | `VERIFIED_REPO` | 框内投影点经过稳健过滤后的最低数量 |
+| `min_valid_ratio` | `0.15` | `VERIFIED_REPO` | RGB框收缩区域的最低深度覆盖比例 |
+| `box_inset_ratio` | `0.15` | `VERIFIED_REPO` | 排除检测框边缘背景的收缩比例，必须小于0.5 |
 
 计划中的 `enable_tracking`、`enable_grab`、`enable_detach`、`enable_base_align` 当前只是设计建议，不得写成已经存在。
+
+固定工位基本夹取不新增ROS参数；使用
+`robot/grape_robot/config/basic_fixed_pick.yaml`。模板中动作许可为false，所有现场
+姿态、夹爪开闭位置和参考深度均为null。任何空值、非法类型、非有限值、相邻姿态
+单关节变化超过0.20rad都会在创建action goal前失败关闭。0.20rad只是离线保护上限，
+不是已经过实车验证的抓取参数。
 
 ## 9. 必须在实车保存的接口快照
 

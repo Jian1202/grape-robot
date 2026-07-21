@@ -3,6 +3,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.conditions import IfCondition
 from launch import LaunchDescription, LaunchService
 from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -30,6 +31,28 @@ def launch_setup(context):
     imgsz_arg = DeclareLaunchArgument('imgsz', default_value=imgsz)
     enable_arm = LaunchConfiguration('enable_arm', default='false')
     enable_arm_arg = DeclareLaunchArgument('enable_arm', default_value=enable_arm)
+    depth_scale = LaunchConfiguration('depth_scale_m_per_unit', default='0.001')
+    depth_scale_arg = DeclareLaunchArgument('depth_scale_m_per_unit', default_value=depth_scale)
+    min_valid_points = LaunchConfiguration('min_valid_points', default='20')
+    min_valid_points_arg = DeclareLaunchArgument('min_valid_points', default_value=min_valid_points)
+    min_valid_ratio = LaunchConfiguration('min_valid_ratio', default='0.15')
+    min_valid_ratio_arg = DeclareLaunchArgument('min_valid_ratio', default_value=min_valid_ratio)
+    box_inset_ratio = LaunchConfiguration('box_inset_ratio', default='0.15')
+    box_inset_ratio_arg = DeclareLaunchArgument('box_inset_ratio', default_value=box_inset_ratio)
+    stability_required_frames = LaunchConfiguration('stability_required_frames', default='3')
+    stability_required_frames_arg = DeclareLaunchArgument(
+        'stability_required_frames', default_value=stability_required_frames)
+    stability_max_position_delta = LaunchConfiguration(
+        'stability_max_position_delta_m', default='0.03')
+    stability_max_position_delta_arg = DeclareLaunchArgument(
+        'stability_max_position_delta_m', default_value=stability_max_position_delta)
+    stability_max_target_age = LaunchConfiguration(
+        'stability_max_target_age_s', default='0.2')
+    stability_max_target_age_arg = DeclareLaunchArgument(
+        'stability_max_target_age_s', default_value=stability_max_target_age)
+    include_bringup = LaunchConfiguration('include_bringup', default='false')
+    include_bringup_arg = DeclareLaunchArgument(
+        'include_bringup', default_value=include_bringup)
     if compiled == 'True':
         controller_package_path = get_package_share_directory('controller')
         peripherals_package_path = get_package_share_directory('peripherals')
@@ -39,10 +62,12 @@ def launch_setup(context):
     depth_camera_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(peripherals_package_path, 'launch/depth_camera.launch.py')),
+        condition=IfCondition(include_bringup),
     )
     controller_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(controller_package_path, 'launch/controller.launch.py')),
+        condition=IfCondition(include_bringup),
     )
 
     track_and_grab_node = Node(
@@ -58,6 +83,13 @@ def launch_setup(context):
             {'confidence': ParameterValue(confidence, value_type=float)},
             {'imgsz': ParameterValue(imgsz, value_type=int)},
             {'enable_arm': ParameterValue(enable_arm, value_type=bool)},
+            {'depth_scale_m_per_unit': ParameterValue(depth_scale, value_type=float)},
+            {'min_valid_points': ParameterValue(min_valid_points, value_type=int)},
+            {'min_valid_ratio': ParameterValue(min_valid_ratio, value_type=float)},
+            {'box_inset_ratio': ParameterValue(box_inset_ratio, value_type=float)},
+            {'stability_required_frames': ParameterValue(stability_required_frames, value_type=int)},
+            {'stability_max_position_delta_m': ParameterValue(stability_max_position_delta, value_type=float)},
+            {'stability_max_target_age_s': ParameterValue(stability_max_target_age, value_type=float)},
         ]
     )
 
@@ -69,6 +101,14 @@ def launch_setup(context):
             confidence_arg,
             imgsz_arg,
             enable_arm_arg,
+            depth_scale_arg,
+            min_valid_points_arg,
+            min_valid_ratio_arg,
+            box_inset_ratio_arg,
+            stability_required_frames_arg,
+            stability_max_position_delta_arg,
+            stability_max_target_age_arg,
+            include_bringup_arg,
             depth_camera_launch,
             controller_launch,
             track_and_grab_node,

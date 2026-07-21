@@ -1,0 +1,80 @@
+{
+  "status": "OK",
+  "evidence_status": "VERIFIED_ROBOT",
+  "captured_at": "2026-07-14",
+  "safety_mode": "subscribe_only",
+  "manual_distance_m": {
+    "min": 0.45,
+    "max": 0.49,
+    "status": "DOCUMENTED_ROBOT",
+    "note": "Distance reported by the onsite user; measurement origin and tool uncertainty were not independently calibrated."
+  },
+  "model_path": "/home/ubuntu/teams/ctrlteam/grape_robot/models/current.pt",
+  "model_names": {
+    "0": "unripe_grape",
+    "1": "ripe_grape"
+  },
+  "frame_count": 3,
+  "frames": [
+    {
+      "index": 0,
+      "rgb": [640, 480, "rgb8"],
+      "depth": [640, 400, "16UC1"],
+      "sync_delta_s": 0.007661,
+      "depth_nonzero_ratio": 0.7759,
+      "scene_depth_median_m": 0.509,
+      "detection": {
+        "class": "ripe_grape",
+        "confidence": 0.9664,
+        "box": [348.24, 238.75, 408.09, 334.77],
+        "localization_success": true,
+        "failure": "NONE",
+        "depth_m": 0.4562,
+        "coverage": 0.9424,
+        "valid_points": 2945,
+        "color_point_m": [0.05245681640795193, 0.044454660664985796, 0.4561936351101324],
+        "projected_pixel": [377.5950349009916, 286.93113176521774]
+      }
+    },
+    {
+      "index": 1,
+      "rgb": [640, 480, "rgb8"],
+      "depth": [640, 400, "16UC1"],
+      "sync_delta_s": 0.010035,
+      "depth_nonzero_ratio": 0.7783,
+      "scene_depth_median_m": 0.51,
+      "detection": {
+        "class": "ripe_grape",
+        "confidence": 0.9674,
+        "box": [347.93, 239.15, 408.46, 334.75],
+        "localization_success": true,
+        "failure": "NONE",
+        "depth_m": 0.4562,
+        "coverage": 0.9581,
+        "valid_points": 3013,
+        "color_point_m": [0.05307920217804111, 0.04426933962079831, 0.4561503760538489],
+        "projected_pixel": [378.4445586758869, 286.89998351878785]
+      }
+    },
+    {
+      "index": 2,
+      "rgb": [640, 480, "rgb8"],
+      "depth": [640, 400, "16UC1"],
+      "sync_delta_s": 0.004645,
+      "depth_nonzero_ratio": 0.7785,
+      "scene_depth_median_m": 0.509,
+      "detection": {
+        "class": "ripe_grape",
+        "confidence": 0.9702,
+        "box": [348.32, 239.17, 408.2, 334.66],
+        "localization_success": true,
+        "failure": "NONE",
+        "depth_m": 0.4581,
+        "coverage": 0.9475,
+        "valid_points": 2952,
+        "color_point_m": [0.05274408079254103, 0.04452324689659605, 0.4581464133950206],
+        "projected_pixel": [378.23547087881093, 286.95155550767595]
+      }
+    }
+  ]
+}
