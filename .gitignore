@@ -32,6 +32,7 @@ yolo/data/annotation_work/
 yolo/data/review/
 yolo/data/images/
 yolo/data/labels/
+yolo/data/tmp/
 
 # Model weights
 *.pt
