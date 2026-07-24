@@ -1,0 +1,9 @@
+# V1 真实图片基线：不使用任何随机数据增强。
+path: E:/grape-robot/yolo/data/tmp/noaug_v1
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: unripe_grape
+  1: ripe_grape

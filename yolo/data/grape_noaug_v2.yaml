@@ -1,0 +1,9 @@
+# V1 基础数据加 hard26 真实困难样本：不使用任何随机数据增强。
+path: E:/grape-robot/yolo/data/tmp/noaug_v2
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: unripe_grape
+  1: ripe_grape
